@@ -12,7 +12,8 @@ class TextPad(tk.Text):
                        undo=True,
                        **kwargs):
         super().__init__(parent, autoseparators=autoseparators, maxundo=maxundo, undo=undo, **kwargs)
-        
+        self.parent = parent
+
         self.storeobj  = {}
         self.functions = {}
         self.connect_external_module_features(config)
