@@ -48,13 +48,13 @@ class StationeryFunctions(object):
         self.text.maxundo = -1
         
     def store_functions(self):
-        self.text.storeobj['Copy']        = self.copy
-        self.text.storeobj['Cut']         = self.cut
-        self.text.storeobj['Paste']       = self.paste
-        self.text.storeobj['Undo']        = self.undo
-        self.text.storeobj['Redo']        = self.redo
-        self.text.storeobj['SelectAll']   = self.select_all
-        self.text.storeobj['DeselectAll'] = self.deselect_all
+        self.text.functions['Copy']        = self.copy
+        self.text.functions['Cut']         = self.cut
+        self.text.functions['Paste']       = self.paste
+        self.text.functions['Undo']        = self.undo
+        self.text.functions['Redo']        = self.redo
+        self.text.functions['SelectAll']   = self.select_all
+        self.text.functions['DeselectAll'] = self.deselect_all
         
     def undo(self, event=None):
         self.text.event_generate("<<Undo>>")
