@@ -1,5 +1,6 @@
 from .addins import FileHandler, LineNumbers, Popup
 from .addins import Scrollbar, StationeryFunctions
+from .addins import PythonSyntaxColor
 
 
 class TextPadConfig(object):
@@ -10,4 +11,5 @@ class TextPadConfig(object):
         FileHandler(pad)
         LineNumbers(pad)
         Popup(pad)
+        PythonSyntaxColor(pad)
         Scrollbar(pad)
