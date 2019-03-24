@@ -13,11 +13,11 @@ class Popup(object):
         
     def generate_menu(self):
         self.menu = tk.Menu(self.text.master)
-        self.menu.add_command(label="Copy", command=self.text.storeobj['Copy'])
-        self.menu.add_command(label="Cut", command=self.text.storeobj['Cut'])
-        self.menu.add_command(label="Paste", command=self.text.storeobj['Paste'])
+        self.menu.add_command(label="Copy", command=self.text.functions['Copy'])
+        self.menu.add_command(label="Cut", command=self.text.functions['Cut'])
+        self.menu.add_command(label="Paste", command=self.text.functions['Paste'])
         self.menu.add_separator()
-        self.menu.add_command(label="Select All", command=self.text.storeobj['SelectAll'])
+        self.menu.add_command(label="Select All", command=self.text.functions['SelectAll'])
         
     def show_menu_(self, event=None):
         self.menu.tk_popup(event.x, event.y)
