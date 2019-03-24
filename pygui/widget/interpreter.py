@@ -21,7 +21,9 @@ except AttributeError:
     # for some reason, calls to sys.ps1 throw exceptions -- fix that here
     sys.ps1 = '>>> '
     sys.ps2 = '... '
-        
+
+# TODO: IMPLEMENT HISTORY FILE
+
 
 class RedirectedInterpreter(InteractiveConsole):
     
@@ -35,6 +37,10 @@ class RedirectedInterpreter(InteractiveConsole):
         self.stdout     = stdout
         self.stderr     = stderr
         self.excepthook = excepthook
+        
+        self.locals['__console_stdout__'] = self.stdout
+        self.locals['__console_stderr__'] = self.stderr
+        self.locals['__console_excepthook__'] = self.excepthook
         
         self._waiting = False
         
@@ -51,11 +57,12 @@ class Console(tk.Frame, RedirectedInterpreter):
                        locals=None,
                        history_file=None,
                        auto_view=True,
-                       standalone=False):
+                       standalone=False,
+                       command_callback=None):
         tk.Text.__init__(self, parent)
         RedirectedInterpreter.__init__(self,
-                                       stdout=_ConsoleStream(self),
-                                       stderr=_ConsoleStream(self, foreground="red"),
+                                       stdout=_ConsoleStream(self, fileno=1),
+                                       stderr=_ConsoleStream(self, foreground="red", fileno=2),
                                        excepthook=print_error,
                                        locals=locals)
         self.parent = parent
@@ -64,6 +71,8 @@ class Console(tk.Frame, RedirectedInterpreter):
         
         self.input  = _ConsoleInput(self)
         self.output = _ConsoleOutput(self, auto_view=auto_view)
+
+        self.command_callback = command_callback
         
         if standalone:
             self.pack(expand=True, fill=tk.BOTH)
@@ -92,17 +101,20 @@ class Console(tk.Frame, RedirectedInterpreter):
         self.output.auto_view = value
         self._auto_view = value
         
-    def pushr(self, string):
+    def pushr(self, string, print_input=True):
         with redirect(stdout=self.stdout,
                       stderr=self.stderr,
                       excepthook=self.excepthook):
-            if not self._waiting:
+            if not self._waiting and print_input:
                 sys.stdout.write("%s%s\n" % (sys.ps1, string))
-            else:
+            elif print_input:
                 sys.stdout.write("%s\n" % (string))
             self._waiting = self.push(string)
-            if self._waiting:
+            if self._waiting and print_input:
                 sys.stdout.write("%s" % sys.ps2)
+
+        if self.command_callback is not None:
+            self.command_callback()
     
     def write(self, string, foreground="black"):
         self.output.write(string, foreground=foreground)
@@ -159,10 +171,14 @@ class _ConsoleOutput(tk.Text):
                  
 class _ConsoleStream(object):
     
-    def __init__(self, parent=None, foreground="black"):
+    def __init__(self, parent=None, foreground="black", fileno=0):
         self.parent = parent
         self.foreground = foreground
+        self._fileno = fileno
         
+    def fileno(self):
+        return self._fileno
+    
     def write(self, string):
         self.parent.write(string, foreground=self.foreground)
         
