@@ -40,6 +40,8 @@ class TabbedTextpad(ttk.Notebook):
         new_tab = [tab for tab in self.tabs() if tab not in old_tabs][0]
         self.tab_widgets[new_tab] = child
         self.bind_child_keys(pad)
+        self.select(new_tab)
+        return new_tab, child, pad
         
     def bind_keys(self):
         for key in ['<Control-n>', '<Control-N>']:
