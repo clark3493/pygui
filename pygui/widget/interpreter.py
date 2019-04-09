@@ -22,8 +22,6 @@ except AttributeError:
     sys.ps1 = '>>> '
     sys.ps2 = '... '
 
-# TODO: IMPLEMENT HISTORY FILE
-
 
 class RedirectedInterpreter(InteractiveConsole):
     
@@ -122,25 +120,60 @@ class Console(tk.Frame, RedirectedInterpreter):
         
 class _ConsoleInput(tk.Entry):
     
-    def __init__(self, parent=None, tab_spacing=4):
+    def __init__(self, parent=None, tab_spacing=4, max_cache=128):
         super().__init__(parent)
         self.parent = parent
         self.tab_spacing = tab_spacing
-        
+        self.max_cache = max_cache
+
+        self.bind('<Down>', self.display_next_command)
         self.bind('<Return>', self.enter)
         self.bind('<Tab>', self.tab)
-        
-    def enter(self, event):
+        self.bind('<Up>', self.display_previous_command)
+
+        self._commands = ['']
+        self._current_command_index = 1
+
+    def display_next_command(self, event=None):
+        cmd = self.get_next_command()
+        self.set_displayed_text(cmd)
+
+    def display_previous_command(self, event=None):
+        cmd = self.get_previous_command()
+        self.set_displayed_text(cmd)
+
+    def enter(self, event=None):
         string = self.get()
         self.delete(0, tk.END)
         if string.strip() == "":
             string = ""
         self.push(string)
+
+    def get_next_command(self):
+        if self._current_command_index > 1:
+            self._current_command_index -= 1
+        return self._commands[-self._current_command_index]
+
+    def get_previous_command(self):
+        if self._current_command_index < len(self._commands):
+            self._current_command_index += 1
+        return self._commands[-self._current_command_index]
         
     def push(self, string):
         self.parent.pushr(string)
+        self.store_command(string)
+        self._current_command_index = 1
+
+    def set_displayed_text(self, txt):
+        self.delete(0, tk.END)
+        self.insert(0, txt)
+
+    def store_command(self, cmd):
+        if len(self._commands) > self.max_cache:
+            self._commands = self._commands[1:]
+        self._commands.insert(-1, cmd)
         
-    def tab(self, event):
+    def tab(self, event=None):
         self.insert(tk.INSERT, ' ' * self.tab_spacing)
         self.select_clear()
         return "break"  # prevent class default tab behavior from occurring
