@@ -77,7 +77,8 @@ class ObjectTree(ttk.Treeview):
 
     def on_right_click(self, event=None):
         node = self.get_node()
-        node.on_right_click(event)
+        if node is not None:
+            node.on_right_click(event)
 
     def set_column_titles(self, columns):
         for column in columns:
@@ -105,6 +106,12 @@ class ObjectTree(ttk.Treeview):
             if node.name == name:
                 return True
         return False
+
+    def _delete_selected_topdict_item(self, event=None):
+        node = self.get_node()
+        self.delete(node.iid)
+        del(self.id_node_dict[node.iid])
+        del(self.topdict[node.name])
 
     def _remove_topdict_items(self):
         for node, iid in self.node_id_dict.items():
@@ -175,7 +182,12 @@ class TreeNode(object):
         self.refresh_children()
 
     def on_right_click(self, event=None):
-        pass
+        if isinstance(self.parent, ObjectTree):
+            popup = _TopDictNodePopupMenu(self.parent)
+            try:
+                popup.tk_popup(event.x_root, event.y_root, 0)
+            finally:
+                popup.grab_release()
 
     def refresh_children(self):
         pass
@@ -222,6 +234,16 @@ class DictTreeNode(IterableTreeNode):
             if isinstance(node, IterableTreeNode):
                 node.refresh_children()
             self.id_node_dict[iid] = node
+
+
+class _TopDictNodePopupMenu(tk.Menu):
+
+    def __init__(self, parent, *args, tearoff=0, **kwargs):
+        super().__init__(parent, *args, tearoff=tearoff, **kwargs)
+
+        self.parent = parent
+
+        self.add_command(label="Delete", command=self.parent._delete_selected_topdict_item)
 
 
 if __name__ == "__main__":
