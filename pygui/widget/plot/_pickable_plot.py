@@ -76,11 +76,11 @@ class PickableAxes(Axes):
     @classmethod
     def _create_artist_handler(cls, artist, *args, **kwargs):
         if isinstance(artist, Line2D):
-            return _SelectableLine2DHandler(artist, *args, **kwargs)
+            return _PickableLine2DHandler(artist, *args, **kwargs)
         elif isinstance(artist, PathCollection):
-            return _SelectablePathCollectionHandler(artist, *args, **kwargs)
+            return _PickablePathCollectionHandler(artist, *args, **kwargs)
         else:
-            return _SelectableArtistHandler(artist, *args, **kwargs)
+            return _PickableArtistHandler(artist, *args, **kwargs)
 
     @staticmethod
     def _get_artist_data(artist):
@@ -172,7 +172,7 @@ class _PickableAxesOptions(object):
         self._picker = value
 
 
-class _SelectableArtistHandler(object):
+class _PickableArtistHandler(object):
 
     DEFAULT_ANNOTATION_PARAMS = {'xycoords': 'data',
                                  'xytext': (10, 10),
@@ -284,7 +284,7 @@ class _SelectableArtistHandler(object):
             return {s: np.array(self.parent[s])[index] for s in names}
 
 
-class _SelectableLine2DHandler(_SelectableArtistHandler):
+class _PickableLine2DHandler(_PickableArtistHandler):
 
     def __init__(self, artist, *args, **kwargs):
         super().__init__(artist, *args, **kwargs)
@@ -339,7 +339,7 @@ class _SelectableLine2DHandler(_SelectableArtistHandler):
                 'ms': self.artist.get_ms()}
 
 
-class _SelectablePathCollectionHandler(_SelectableArtistHandler):
+class _PickablePathCollectionHandler(_PickableArtistHandler):
 
     def deselect(self, ind=None):
         self.remove_selection_indicators()
