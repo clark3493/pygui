@@ -11,17 +11,17 @@ class PickableAxes(Axes):
 
     DATA_ARTISTS = (Line2D, PathCollection)
 
-    def __init__(self, *args, picker=5, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cla()
 
         self.handlers = {}
-        self.picker = picker
+        self.options = _PickableAxesOptions(self)
 
         self.figure.canvas.mpl_connect('pick_event', self.onpick)
 
     def loglog(self, *args, parent=None, **kwargs):
-        picker = self.picker if parent is not None else None
+        picker = self.options.picker if parent is not None else None
         lines = super().loglog(*args, picker=picker, **kwargs)
         self._add_artists(lines, parent)
         return lines
@@ -33,7 +33,6 @@ class PickableAxes(Axes):
             key = event.mouseevent.key
 
             handler = self.handlers[artist]
-            handler.data_to_show = ['C', 'D', 'A']  # for testing only
 
             # TODO: IMPLEMENT ABILITY TO CHECK IF MULTIPLE LINES HAVE BEEN PICKED AND ONLY TAKE ACTION FOR ONE
             if key is None:
@@ -44,25 +43,25 @@ class PickableAxes(Axes):
                 handler.flip_selection_status()
 
     def plot(self, *args, parent=None, **kwargs):
-        picker = self.picker if parent is not None else None
+        picker = self.options.picker if parent is not None else None
         lines = super().plot(*args, picker=picker, **kwargs)
         self._add_artists(lines, parent)
         return lines
 
     def scatter(self, *args, parent=None, **kwargs):
-        picker = self.picker if parent is not None else None
+        picker = self.options.picker if parent is not None else None
         collections = super().scatter(*args, picker=picker, **kwargs)
         self._add_artists(collections, parent)
         return collections
 
     def semilogx(self, *args, parent=None, **kwargs):
-        picker = self.picker if parent is not None else None
+        picker = self.options.picker if parent is not None else None
         lines = super().semilogx(*args, picker=picker, **kwargs)
         self._add_artists(lines, parent)
         return lines
 
     def semilogy(self, *args, parent=None, **kwargs):
-        picker = self.picker if parent is not None else None
+        picker = self.options.picker if parent is not None else None
         lines = super().semilogy(*args, picker=picker, **kwargs)
         self._add_artists(lines, parent)
         return lines
@@ -111,6 +110,68 @@ class PickableAxes(Axes):
         return indices[np.argmin(dist)]
 
 
+class _PickableAxesOptions(object):
+
+    def __init__(self, ax):
+        self.ax = ax
+
+        self._draggable_annotations = True
+        self._linewidth_delta = 2
+        self._markersize_delta = 6
+        self._picker = 5
+        self._data_to_show = []
+
+    @property
+    def data_to_show(self):
+        return self._data_to_show
+
+    @data_to_show.setter
+    def data_to_show(self, value):
+        self._data_to_show = value
+        for handler in self.ax.handlers.values():
+            handler.data_to_show = value
+
+    @property
+    def draggable_annotations(self):
+        return self._draggable_annotations
+
+    @draggable_annotations.setter
+    def draggable_annotations(self, value):
+        self._draggable_annotations = value
+        for handler in self.ax.handlers.values():
+            handler.draggable_annotations = value
+
+    @property
+    def linewidth_delta(self):
+        return self._linewidth_delta
+
+    @linewidth_delta.setter
+    def linewidth_delta(self, value):
+        self._linewidth_delta = value
+        for handler in self.ax.handlers.values():
+            if 'linewidth_delta' in handler.__dict__:
+                handler.linewidth_delta = value
+
+    @property
+    def markersize_delta(self):
+        return self._markersize_delta
+
+    @markersize_delta.setter
+    def markersize_delta(self, value):
+        self._markersize_delta = value
+        for handler in self.ax.handlers.values():
+            if 'markersize_delta' in handler.__dict__:
+                handler.markersize_delta = value
+
+    @property
+    def picker(self):
+        return self._picker
+
+    @picker.setter
+    def picker(self, value):
+        self._picker = value
+
+
 class _SelectableArtistHandler(object):
 
     DEFAULT_ANNOTATION_PARAMS = {'xycoords': 'data',
@@ -122,21 +183,18 @@ class _SelectableArtistHandler(object):
 
     def __init__(self,
                  artist,
-                 data_to_show=[],   # TODO: MAKE THIS MORE FLEXIBLE
-                 draggable_annotations=True,
-                 markersize_delta=0,
                  parent=None):
         self.artist = artist
         self.parent = parent
         self.selected = False
-        self.data_to_show = data_to_show
+        self.data_to_show = artist.axes.options.data_to_show
 
         self.annotation_params = self.DEFAULT_ANNOTATION_PARAMS
-        self.draggable_annotations = draggable_annotations
+        self.draggable_annotations = artist.axes.options.draggable_annotations
         self.annotations = []
 
         self._original_attributes = self._get_artist_attributes()
-        self.markersize_delta = markersize_delta
+        self.markersize_delta = self.artist.axes.options.markersize_delta
         self.selection_indicators = []
 
     def add_annotation(self, string, xy):
@@ -185,6 +243,7 @@ class _SelectableArtistHandler(object):
         self.draw_idle()
 
     def show_data(self, index, names=None):
+        names = self.data_to_show if names is None else names
         data = self._get_parent_data(index=index, names=names)
         string = self._data_string(data)
         x, y = self._get_data_coordinates(index)
@@ -227,10 +286,10 @@ class _SelectableArtistHandler(object):
 
 class _SelectableLine2DHandler(_SelectableArtistHandler):
 
-    def __init__(self, artist, *args, linewidth_delta=2, **kwargs):
+    def __init__(self, artist, *args, **kwargs):
         super().__init__(artist, *args, **kwargs)
 
-        self.linewidth_delta = linewidth_delta
+        self.linewidth_delta = artist.axes.options.linewidth_delta
 
     def add_line_selection_indicator(self):
         attributes = self._selection_attributes
@@ -252,7 +311,7 @@ class _SelectableLine2DHandler(_SelectableArtistHandler):
         self.add_line_selection_indicator()
         if ind is not None:
             self.add_selection_indicator(ind)
-            self.show_data(ind)
+            self.show_data(index=ind)
         self.selected = True
 
     @property
