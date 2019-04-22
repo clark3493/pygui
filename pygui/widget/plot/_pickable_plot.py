@@ -371,6 +371,3 @@ class _SelectablePathCollectionHandler(_SelectableArtistHandler):
 
 
 register_projection(PickableAxes)
-
-
-register_projection(PickableAxes)
