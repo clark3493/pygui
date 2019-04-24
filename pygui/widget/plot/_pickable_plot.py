@@ -7,66 +7,235 @@ from matplotlib.projections import register_projection
 
 
 class PickableAxes(Axes):
+    """
+    A subclass of matplotlib.axes._axes.Axes which support selection and action on data series.
+
+    The axes currently support plotting methods the same as in a basic Axes except that
+    a parent Run (i.e. DataFrame) can be supplied with the data. Corresponding data
+    from the parent can be displayed for a particular point by clicking on it within
+    the active Figure.
+
+    The columns from the parent run which are shown when a daa point is selected are defined
+    in the PickableAxes object's options.annotation_data attribute.
+
+    Parameters
+    ----------
+    *args
+        Positional arguments passed to the Axes constructor
+    **kwargs
+        Arbitrary keyword arguments passed to the Axes constructor
+
+    Notes
+    -----
+    .. [1] To select multiple points within the same data series, hold Ctrl while clicking
+
+    References
+    ----------
+    .. [1] matplotlib Custom Projections documentation:
+           https://matplotlib.org/gallery/misc/custom_projection.html
+
+    See Also
+    --------
+    .. [1] PickableAxesOptions
+    .. [2] matplotlib.axes._axes.Axes
+    """
+
     name = 'pickable'
+    """
+    The matplotlib projection name. The user will use this name to activate
+    the PickableAxes functionality i.e. subplot(111, projection='pickable').
+    """
 
     DATA_ARTISTS = (Line2D, PathCollection)
+    """
+    Supported artists (i.e. plot features) for pickable functionality.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cla()
 
         self.handlers = {}
-        self.options = _PickableAxesOptions(self)
+        self.options = PickableAxesOptions(self)
 
         self.figure.canvas.mpl_connect('pick_event', self.onpick)
 
     def loglog(self, *args, parent=None, **kwargs):
+        """
+        Make a pickable plot with log scaling on both the x and y axes.
+
+        Parameters
+        ----------
+        *args:
+            Positional arguments passed to the Axes.loglog method
+        parent: pygui.data.run.Run or DataFrame, optional. Default=None.
+            The parent DataFrame that the x,y data came from.
+        **kwargs:
+            Arbitrary keyword arguments passed to the Axes.loglog method.
+
+        Returns
+        -------
+        lines: list(Line2D)
+            A list of Line2D object(s) representing the plotted data.
+
+        Notes
+        -----
+        .. [1] A parent must be supplied in order for the data series to be pickable.
+        """
         picker = self.options.picker if parent is not None else None
         lines = super().loglog(*args, picker=picker, **kwargs)
         self._add_artists(lines, parent)
         return lines
 
     def onpick(self, event):
-        if any(isinstance(event.artist, o) for o in self.DATA_ARTISTS):
-            artist = event.artist
-            ind = self._get_closest_index(event)
-            key = event.mouseevent.key
+        """
+        Callback function for a pick event.
 
+        Parameters
+        ----------
+        event: matplotlib.backend_bases.Event
+            The pick event obejct.
+        """
+
+        # only act when supported objects are picked
+        if any(isinstance(event.artist, o) for o in self.DATA_ARTISTS):
+            artist = event.artist                   # the picked plot feature
+            ind = self._get_closest_index(event)    # the index of the data series closest to the click
+            key = event.mouseevent.key              # any keys that were pressed at the time of the click
+
+            # get the artist handler obejct
             handler = self.handlers[artist]
 
             # TODO: IMPLEMENT ABILITY TO CHECK IF MULTIPLE LINES HAVE BEEN PICKED AND ONLY TAKE ACTION FOR ONE
             if key is None:
+                # no keyboard keys held, simply select/deselect the artist
                 handler.flip_selection_status(ind)
             elif 'control' in key or 'ctrl' in key:
+                # allow multiple selections
                 handler.select(ind)
             else:
+                # simply select/deselect te artist
                 handler.flip_selection_status()
 
     def plot(self, *args, parent=None, **kwargs):
+        """
+        Make a pickable plot.
+
+        Parameters
+        ----------
+        *args:
+            Positional arguments passed to the Axes.loglog method
+        parent: pygui.data.run.Run or DataFrame, optional. Default=None.
+            The parent DataFrame that the x,y data came from.
+        **kwargs:
+            Arbitrary keyword arguments passed to the Axes.loglog method.
+
+        Returns
+        -------
+        lines: list(Line2D)
+            A list of Line2D object(s) representing the plotted data.
+
+        Notes
+        -----
+        .. [1] A parent must be supplied in order for the data series to be pickable.
+        """
         picker = self.options.picker if parent is not None else None
         lines = super().plot(*args, picker=picker, **kwargs)
         self._add_artists(lines, parent)
         return lines
 
     def scatter(self, *args, parent=None, **kwargs):
+        """
+        Make a pickable scatter plot.
+
+        Parameters
+        ----------
+        *args:
+            Positional arguments passed to the Axes.loglog method
+        parent: pygui.data.run.Run or DataFrame, optional. Default=None.
+            The parent DataFrame that the x,y data came from.
+        **kwargs:
+            Arbitrary keyword arguments passed to the Axes.loglog method.
+
+        Returns
+        -------
+        paths: PathCollection
+            Collection representing the plotted data.
+
+        Notes
+        -----
+        .. [1] A parent must be supplied in order for the data series to be pickable.
+        """
         picker = self.options.picker if parent is not None else None
         collections = super().scatter(*args, picker=picker, **kwargs)
         self._add_artists(collections, parent)
         return collections
 
     def semilogx(self, *args, parent=None, **kwargs):
+        """
+        Make a pickable plot with log scaling on the x axis.
+
+        Parameters
+        ----------
+        *args:
+            Positional arguments passed to the Axes.loglog method
+        parent: pygui.data.run.Run or DataFrame, optional. Default=None.
+            The parent DataFrame that the x,y data came from.
+        **kwargs:
+            Arbitrary keyword arguments passed to the Axes.loglog method.
+
+        Returns
+        -------
+        lines: list(Line2D)
+            A list of Line2D object(s) representing the plotted data.
+
+        Notes
+        -----
+        .. [1] A parent must be supplied in order for the data series to be pickable.
+        """
         picker = self.options.picker if parent is not None else None
         lines = super().semilogx(*args, picker=picker, **kwargs)
         self._add_artists(lines, parent)
         return lines
 
     def semilogy(self, *args, parent=None, **kwargs):
+        """
+        Make a pickable plot with log scaling on the y axis.
+
+        Parameters
+        ----------
+        *args:
+            Positional arguments passed to the Axes.loglog method
+        parent: pygui.data.run.Run or DataFrame, optional. Default=None.
+            The parent DataFrame that the x,y data came from.
+        **kwargs:
+            Arbitrary keyword arguments passed to the Axes.loglog method.
+
+        Returns
+        -------
+        lines: list(Line2D)
+            A list of Line2D object(s) representing the plotted data.
+
+        Notes
+        -----
+        .. [1] A parent must be supplied in order for the data series to be pickable.
+        """
         picker = self.options.picker if parent is not None else None
         lines = super().semilogy(*args, picker=picker, **kwargs)
         self._add_artists(lines, parent)
         return lines
 
     def _add_artists(self, artists, parent):
+        """
+        Create a handler object for each artist and store them.
+
+        Parameters
+        ----------
+        artists: list(matplotlib.artist.Artist)
+            List of matplotlib artists (e.g. Line2D, PathCollection)
+        parent: pygui.data.run.Run or DataFrame or None
+            The parent DataFrame or None
+        """
         if parent is not None:
             if isinstance(artists, PathCollection):
                 artists = [artists]
@@ -75,6 +244,22 @@ class PickableAxes(Axes):
 
     @classmethod
     def _create_artist_handler(cls, artist, *args, **kwargs):
+        """
+        Determine the type of the artist and create an appropriate handler object.
+
+        Parameters
+        ----------
+        artist: matplotlib.artist.Artist
+            The artist for which the handler is to be made.
+        *args
+            Positional arguments passed to the handler constructor.
+        **kwargs
+            Arbitrary keywords arguments passed to the handler constructor.
+
+        Returns
+        -------
+        handler: _PickableArtistHandler or a subclass thereof
+        """
         if isinstance(artist, Line2D):
             return _PickableLine2DHandler(artist, *args, **kwargs)
         elif isinstance(artist, PathCollection):
@@ -84,6 +269,18 @@ class PickableAxes(Axes):
 
     @staticmethod
     def _get_artist_data(artist):
+        """
+        Get the x,y data which the artist represents.
+
+        Parameters
+        ----------
+        artist: matplotlib.artist.Artist
+            the artist containing the data.
+
+        Returns
+        -------
+        data: numpy.array (ndim=1), numpy.array (ndim=1)
+        """
         if isinstance(artist, Line2D):
             return artist.get_data()
         elif isinstance(artist, PathCollection):
@@ -94,92 +291,129 @@ class PickableAxes(Axes):
             raise TypeError("Artist type not recognized. Supported types are 'Line2D' and 'PathCollection'")
 
     def _get_closest_index(self, event):
+        """
+        Get the data index closest to the pick event's mouse location.
+
+        The event.ind attribute always seems to return the lower of the two indices
+        that comprise a selected line segment, even if the mouse click was closer to
+        the higher indexed point.
+
+        This method checks both the returned index and the next higher index to determine
+        which one is closer.
+
+        Parameters
+        ----------
+        event: matplotlib.backend_bases.Event
+            The pick event.
+
+        Returns
+        -------
+        ind: int
+            The index of the data closest to the click.
+        """
+
+        # get the lower index (or indices) that is returned by default
         indices = event.ind
+
+        # get the full data series for the artist
         datax, datay = self._get_artist_data(event.artist)
+
+        # check each returned index
         for i, index in enumerate(indices):
+            # verify that the artist has a line and that the last item in the data series was not selected
             if event.artist.get_linestyle() is not None and index != len(datax)-1:
-                # event.ind always seems to return the lower index of the two indices
-                # that comprise the selected line segment, even if the mouse click
-                # was closer to the higher indexed point
-                # this check adds the next index to be checked and see which one
-                # is actually closer to the mouse click
+                # if so, append the next higher index
                 indices = np.append(indices, indices[i]+1)
+
+        # get the data corresponding to the lower and higher indices
         datax, datay = [datax[i] for i in indices], [datay[i] for i in indices]
+
+        # get the mouse click location
         msx, msy = event.mouseevent.xdata, event.mouseevent.ydata
+
+        # calculate the distance from the mouse click to the data
         dist = np.sqrt((np.array(datax)-msx)**2 + (np.array(datay)-msy)**2)
+
+        # return the index corresponding to the smaller distance
         return indices[np.argmin(dist)]
 
 
-class _PickableAxesOptions(object):
+class PickableAxesOptions(object):
+    """
+    An object to store options for PickableAxes for which the user has control.
+
+    The attributes of a PickableAxesOptions object can be modified to adjust the
+    settings for a particular axes. Alternatively, the class attributes can be modified
+    to adjust the settings for all subsequently created PickableAxes, as the object
+    attributes are set to the value of the class attributes upon initialization.
+
+    Parameters
+    ----------
+    ax: matplotlib.axes._axes.Axes
+        The axes for which the options correspond.
+    """
+
+    ANNOTATION_DATA = []
+    """
+    The column names from a parent object that will be displayed when a data point is selected.
+    
+    dtype: list(str)
+    """
+
+    ANNOTATION_PARAMS = {'xycoords': 'data',
+                         'xytext': (10, 10),
+                         'textcoords': 'offset points',
+                         'fontsize': 8,
+                         'bbox': {'boxstyle': 'round', 'fc': '0.8'},
+                         'arrowprops': {'arrowstyle': '-|>'}}
+    """
+    Keywords arguments passed to the annotation box constructor when displaying data.
+    
+    dtype: dict{str: misc}
+    """
+
+    DRAGGABLE_ANNOTATIONS = True
+    """
+    Flag to allow the user to drag annotation boxes within a figure.
+    
+    dtype: bool
+    """
+
+    LINEWIDTH_DELTA = 2
+    """
+    Linewidth increment to indicate that a line has been selected.
+    
+    dtype: int
+    """
+
+    MARKERSIZE_DELTA = 6
+    """
+    Markersize delta to indicate that a data point has been selected.
+    
+    Note: not currently supported for scatter plots.
+    
+    dtype: int
+    """
+
+    PICKER = 5.
+    """
+    Picker setting for pickable artists. See https://matplotlib.org/users/event_handling.html.
+    
+    dtype: None, bool, float or function
+    """
 
     def __init__(self, ax):
         self.ax = ax
 
-        self._draggable_annotations = True
-        self._linewidth_delta = 2
-        self._markersize_delta = 6
-        self._picker = 5
-        self._data_to_show = []
-
-    @property
-    def data_to_show(self):
-        return self._data_to_show
-
-    @data_to_show.setter
-    def data_to_show(self, value):
-        self._data_to_show = value
-        for handler in self.ax.handlers.values():
-            handler.data_to_show = value
-
-    @property
-    def draggable_annotations(self):
-        return self._draggable_annotations
-
-    @draggable_annotations.setter
-    def draggable_annotations(self, value):
-        self._draggable_annotations = value
-        for handler in self.ax.handlers.values():
-            handler.draggable_annotations = value
-
-    @property
-    def linewidth_delta(self):
-        return self._linewidth_delta
-
-    @linewidth_delta.setter
-    def linewidth_delta(self, value):
-        self._linewidth_delta = value
-        for handler in self.ax.handlers.values():
-            if 'linewidth_delta' in handler.__dict__:
-                handler.linewidth_delta = value
-
-    @property
-    def markersize_delta(self):
-        return self._markersize_delta
-
-    @markersize_delta.setter
-    def markersize_delta(self, value):
-        self._markersize_delta = value
-        for handler in self.ax.handlers.values():
-            if 'markersize_delta' in handler.__dict__:
-                handler.markersize_delta = value
-
-    @property
-    def picker(self):
-        return self._picker
-
-    @picker.setter
-    def picker(self, value):
-        self._picker = value
+        self.annotation_data       = self.ANNOTATION_DATA
+        self.annotation_params     = self.ANNOTATION_PARAMS
+        self.draggable_annotations = self.DRAGGABLE_ANNOTATIONS
+        self.linewidth_delta       = self.LINEWIDTH_DELTA
+        self.markersize_delta      = self.MARKERSIZE_DELTA
+        self.picker                = self.PICKER
 
 
 class _PickableArtistHandler(object):
-
-    DEFAULT_ANNOTATION_PARAMS = {'xycoords': 'data',
-                                 'xytext': (10, 10),
-                                 'textcoords': 'offset points',
-                                 'fontsize': 8,
-                                 'bbox': {'boxstyle': 'round', 'fc': '0.8'},
-                                 'arrowprops': {'arrowstyle': '-|>'}}
 
     def __init__(self,
                  artist,
@@ -187,19 +421,16 @@ class _PickableArtistHandler(object):
         self.artist = artist
         self.parent = parent
         self.selected = False
-        self.data_to_show = artist.axes.options.data_to_show
+        self.options = artist.axes.options
 
-        self.annotation_params = self.DEFAULT_ANNOTATION_PARAMS
-        self.draggable_annotations = artist.axes.options.draggable_annotations
         self.annotations = []
 
         self._original_attributes = self._get_artist_attributes()
-        self.markersize_delta = self.artist.axes.options.markersize_delta
         self.selection_indicators = []
 
     def add_annotation(self, string, xy):
-        annotation = self.artist.axes.annotate(string, xy, **self.annotation_params)
-        if self.draggable_annotations:
+        annotation = self.artist.axes.annotate(string, xy, **self.options.annotation_params)
+        if self.options.draggable_annotations:
             annotation.draggable()
         self.annotations.append(annotation)
         self.draw_idle()
@@ -243,7 +474,7 @@ class _PickableArtistHandler(object):
         self.draw_idle()
 
     def show_data(self, index, names=None):
-        names = self.data_to_show if names is None else names
+        names = self.options.annotation_data if names is None else names
         data = self._get_parent_data(index=index, names=names)
         string = self._data_string(data)
         x, y = self._get_data_coordinates(index)
@@ -277,7 +508,7 @@ class _PickableArtistHandler(object):
                                   "artist")
 
     def _get_parent_data(self, index=None, names=None):
-        names = self.data_to_show if names is None else names
+        names = self.options.annotation_data if names is None else names
         if index is None:
             return {s: np.array(self.parent[s]) for s in names}
         else:
@@ -285,11 +516,6 @@ class _PickableArtistHandler(object):
 
 
 class _PickableLine2DHandler(_PickableArtistHandler):
-
-    def __init__(self, artist, *args, **kwargs):
-        super().__init__(artist, *args, **kwargs)
-
-        self.linewidth_delta = artist.axes.options.linewidth_delta
 
     def add_line_selection_indicator(self):
         attributes = self._selection_attributes
@@ -317,8 +543,8 @@ class _PickableLine2DHandler(_PickableArtistHandler):
     @property
     def _selection_attributes(self):
         a = self._original_attributes.copy()
-        a['lw'] = a['lw'] + self.linewidth_delta
-        a['ms'] = a['ms'] + self.markersize_delta
+        a['lw'] = a['lw'] + self.options.linewidth_delta
+        a['ms'] = a['ms'] + self.options.markersize_delta
         return a
 
     def _get_data_coordinates(self, ind):
