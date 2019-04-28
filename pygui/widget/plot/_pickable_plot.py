@@ -60,7 +60,7 @@ class PickableAxes(Axes):
 
         self.figure.canvas.mpl_connect('pick_event', self.onpick)
 
-    def loglog(self, *args, parent=None, **kwargs):
+    def loglog(self, *args, parent=None, indices=None, **kwargs):
         """
         Make a pickable plot with log scaling on both the x and y axes.
 
@@ -70,6 +70,8 @@ class PickableAxes(Axes):
             Positional arguments passed to the Axes.loglog method
         parent: pygui.data.run.Run or DataFrame, optional. Default=None.
             The parent DataFrame that the x,y data came from.
+        indices: list(int), optional
+            The indices of each parent that the i'th data point corresponds to (if separate parent for each point).
         **kwargs:
             Arbitrary keyword arguments passed to the Axes.loglog method.
 
@@ -117,7 +119,7 @@ class PickableAxes(Axes):
                 # simply select/deselect te artist
                 handler.flip_selection_status()
 
-    def plot(self, *args, parent=None, **kwargs):
+    def plot(self, *args, parent=None, indices=None, **kwargs):
         """
         Make a pickable plot.
 
@@ -127,6 +129,8 @@ class PickableAxes(Axes):
             Positional arguments passed to the Axes.loglog method
         parent: pygui.data.run.Run or DataFrame, optional. Default=None.
             The parent DataFrame that the x,y data came from.
+        indices: list(int), optional
+            The indices of each parent that the i'th data point corresponds to (if separate parent for each point).
         **kwargs:
             Arbitrary keyword arguments passed to the Axes.loglog method.
 
@@ -141,10 +145,10 @@ class PickableAxes(Axes):
         """
         picker = self.options.picker if parent is not None else None
         lines = super().plot(*args, picker=picker, **kwargs)
-        self._add_artists(lines, parent)
+        self._add_artists(lines, parent, indices)
         return lines
 
-    def scatter(self, *args, parent=None, **kwargs):
+    def scatter(self, *args, parent=None, indices=None, **kwargs):
         """
         Make a pickable scatter plot.
 
@@ -154,6 +158,8 @@ class PickableAxes(Axes):
             Positional arguments passed to the Axes.loglog method
         parent: pygui.data.run.Run or DataFrame, optional. Default=None.
             The parent DataFrame that the x,y data came from.
+        indices: list(int), optional
+            The indices of each parent that the i'th data point corresponds to (if separate parent for each point).
         **kwargs:
             Arbitrary keyword arguments passed to the Axes.loglog method.
 
@@ -171,7 +177,7 @@ class PickableAxes(Axes):
         self._add_artists(collections, parent)
         return collections
 
-    def semilogx(self, *args, parent=None, **kwargs):
+    def semilogx(self, *args, parent=None, indices=None, **kwargs):
         """
         Make a pickable plot with log scaling on the x axis.
 
@@ -181,6 +187,8 @@ class PickableAxes(Axes):
             Positional arguments passed to the Axes.loglog method
         parent: pygui.data.run.Run or DataFrame, optional. Default=None.
             The parent DataFrame that the x,y data came from.
+        indices: list(int), optional
+            The indices of each parent that the i'th data point corresponds to (if separate parent for each point).
         **kwargs:
             Arbitrary keyword arguments passed to the Axes.loglog method.
 
@@ -198,7 +206,7 @@ class PickableAxes(Axes):
         self._add_artists(lines, parent)
         return lines
 
-    def semilogy(self, *args, parent=None, **kwargs):
+    def semilogy(self, *args, parent=None, indices=None, **kwargs):
         """
         Make a pickable plot with log scaling on the y axis.
 
@@ -208,6 +216,8 @@ class PickableAxes(Axes):
             Positional arguments passed to the Axes.loglog method
         parent: pygui.data.run.Run or DataFrame, optional. Default=None.
             The parent DataFrame that the x,y data came from.
+        indices: list(int), optional
+            The indices of each parent that the i'th data point corresponds to (if separate parent for each point).
         **kwargs:
             Arbitrary keyword arguments passed to the Axes.loglog method.
 
@@ -225,7 +235,7 @@ class PickableAxes(Axes):
         self._add_artists(lines, parent)
         return lines
 
-    def _add_artists(self, artists, parent):
+    def _add_artists(self, artists, parent, indices=None):
         """
         Create a handler object for each artist and store them.
 
@@ -240,7 +250,7 @@ class PickableAxes(Axes):
             if isinstance(artists, PathCollection):
                 artists = [artists]
             for artist in artists:
-                self.handlers[artist] = self._create_artist_handler(artist, parent=parent)
+                self.handlers[artist] = self._create_artist_handler(artist, parent=parent, indices=indices)
 
     @classmethod
     def _create_artist_handler(cls, artist, *args, **kwargs):
@@ -417,9 +427,15 @@ class _PickableArtistHandler(object):
 
     def __init__(self,
                  artist,
-                 parent=None):
+                 parent=None,
+                 indices=None):
         self.artist = artist
-        self.parent = parent
+
+        self.multiparent = False
+        self.parent_indices = None
+        self.parent = None
+        self._store_parent(parent, indices)
+
         self.selected = False
         self.options = artist.axes.options
 
@@ -509,10 +525,23 @@ class _PickableArtistHandler(object):
 
     def _get_parent_data(self, index=None, names=None):
         names = self.options.annotation_data if names is None else names
-        if index is None:
-            return {s: np.array(self.parent[s]) for s in names}
+        if self.multiparent:
+            parent = self.parent[index]
+            i = self.parent_indices[index]
+            return {s: parent[s][i] for s in names}
         else:
-            return {s: np.array(self.parent[s])[index] for s in names}
+            if index is None:
+                return {s: np.array(self.parent[s]) for s in names}
+            else:
+                return {s: np.array(self.parent[s])[index] for s in names}
+
+    def _store_parent(self, parent, indices=None):
+        if any(isinstance(parent, o) for o in (list, tuple)):
+            self.parent = parent
+            self.parent_indices = indices
+            self.multiparent = True
+        else:
+            self.parent = parent
 
 
 class _PickableLine2DHandler(_PickableArtistHandler):
