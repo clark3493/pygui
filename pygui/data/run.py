@@ -88,8 +88,6 @@ class RunSet(object):
 
     def add_run(self, run):
         if run.name in self.runs and not self.allow_overwrite:
-            print(self.runs)
-            print(run.name)
             raise ValueError("Cannot overwrite an existing Run with the same name: %s\n" % run.name +
                              "Either delete the run or set the RunSet's 'allow_overwrite' attribute to True.")
         if not isinstance(run, Run):
