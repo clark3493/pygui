@@ -12,7 +12,7 @@ if SRCDIR not in sys.path:
 from data import Run, RunSet
 
 
-class MyTestCase(unittest.TestCase):
+class RunDataTestCase(unittest.TestCase):
 
     TESTDIR = os.path.dirname(os.path.abspath(__file__))
     TEST_DATA_FILEPATH = os.path.join(TESTDIR, "test_data.csv")

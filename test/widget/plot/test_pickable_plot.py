@@ -33,7 +33,7 @@ class PickableAxesTestCase(unittest.TestCase):
         run = self.setup1()
         run2 = self.setup2()
         ax = plt.subplot(111, projection='pickable')
-        ax.options.data_to_show = ['A', 'C', 'D']
+        ax.options.annotation_data = ['A', 'C', 'D']
         ax.plot(run['TIME'], run['B'], 'r-o', parent=run)
         ax.scatter(run2['TIME'], run2['B'], parent=run2)
         plt.show()
