@@ -12,6 +12,7 @@ def DEFAULT_TREE_FILTER(k):
 
 
 def tree_node(o, parent=None, iid=None, name=None):
+    name = str(name)
     if any(isinstance(o, c) for c in (list, tuple)):
         return IterableTreeNode(o, parent, iid, name=name)
     elif isinstance(o, dict):
@@ -125,7 +126,7 @@ class TreeNode(object):
         self.obj = obj
         self.parent = parent
         self.iid = iid
-        self._name = name
+        self._name = str(name)
 
         self._child_nodes = []
         self._id_node_dict = {}
