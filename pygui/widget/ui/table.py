@@ -79,7 +79,7 @@ class _CellOptions(object):
         self.cell.config(state=state)
 
 
-class Table(tk.Frame):
+class Table(tk.Canvas):
 
     def __init__(self, parent, nrows=0, ncols=0, data=None, **kwargs):
         super().__init__(parent)
@@ -97,10 +97,12 @@ class Table(tk.Frame):
 
         self.options = _TableOptions(self, **kwargs)
 
-        self.pack()
+        self.pack(fill=tk.BOTH, expand=True)
         self._initialize_cells()
-        #self._add_scrollbars()
-        #self.create_window((0,0), window=self.cellframe, anchor='nw')
+        self._add_scrollbars()
+        self.create_window((0, 0), window=self.cellframe, anchor='nw')
+
+        self._bind_commands()
 
         if data is not None:
             self.set_data(data)
@@ -150,7 +152,7 @@ class Table(tk.Frame):
                 name = cellname(row, col, style=self.options.index_style)
                 cell = self.cells[name]
                 cell.value = data[j, i]
-    """
+
     def _add_scrollbars(self):
         self.horizontal_scrollbar = Scrollbar(self, orient=tk.HORIZONTAL)
         self.vertical_scrollbar = Scrollbar(self, orient=tk.VERTICAL)
@@ -163,7 +165,17 @@ class Table(tk.Frame):
 
         self.horizontal_scrollbar['command'] = self.xview
         self.vertical_scrollbar['command'] = self.yview
-    """
+
+        self.cellframe.bind('<Enter>', self._bound_to_mousewheel)
+        self.cellframe.bind('<Leave>', self._unbound_to_mousewheel)
+
+    def _bind_commands(self):
+        self.cellframe.bind('<Configure>', self._on_configure_frame)
+
+    def _bound_to_mousewheel(self, event):
+        self.bind_all('<MouseWheel>', self._on_vertical_mousewheel)
+        self.bind_all('<Shift-MouseWheel>', self._on_horizontal_mousewheel)
+
     def _initialize_cells(self):
         # Frame for all the cells
         self.cellframe = tk.Frame(self)
@@ -195,6 +207,16 @@ class Table(tk.Frame):
                 self.cells[cell.name] = cell
                 cell.grid(row=j, column=i)
 
+    def _on_configure_frame(self, event):
+        self.configure(scrollregion=self.bbox("all"))
+
+    def _on_horizontal_mousewheel(self, event):
+        ## FIX ME - THIS DOESNT SEEM TO BE WORKING
+        self.xview_scroll(int(-1*(event.delta)), "units")
+
+    def _on_vertical_mousewheel(self, event):
+        self.yview_scroll(int(-1*(event.delta)), "units")
+
     @staticmethod
     def _prep_data(data):
         data = np.array(data)
@@ -203,6 +225,10 @@ class Table(tk.Frame):
         if len(data.shape) == 1:
             data = data.reshape((1, data.shape[0]))
         return data
+
+    def _unbound_to_mousewheel(self, event):
+        self.unbind_all('<MouseWheel>')
+        self.unbind_all('<Shift-MouseWheel>')
 
 
 class _TableOptions(object):
