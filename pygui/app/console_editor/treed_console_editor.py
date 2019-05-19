@@ -19,7 +19,7 @@ from simple_console_editor import _ButtonBar, _MenuBar
 
 class TreedConsoleEditor(SimpleConsoleEditor):
 
-    def __init__(self, parent=None, locals={}, configure=True, **kwargs):
+    def __init__(self, parent=None, locals={}, configure=True, addins=[], **kwargs):
         super().__init__(parent, configure=False, **kwargs)
         self.parent = parent
         self.parent.title("PyGUI Console Editor")
@@ -37,6 +37,9 @@ class TreedConsoleEditor(SimpleConsoleEditor):
 
             self._configure_ui()
             self._bind_shortcuts()
+
+            for addin in addins:
+                addin(self)
 
     def refresh_topdict(self):
         self.object_tree.refresh_topdict()
@@ -72,7 +75,8 @@ class TreedConsoleEditor(SimpleConsoleEditor):
 
 
 if __name__ == "__main__":
+    from app.console_editor.addins.array_table import register_right_click_event
     root = tk.Tk()
     root.geometry("800x600")
-    tce = TreedConsoleEditor(root)
+    tce = TreedConsoleEditor(root, addins=[register_right_click_event])
     root.mainloop()
