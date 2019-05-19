@@ -2,72 +2,46 @@ import os
 
 import tkinter as tk
 
-from tkinter import ttk
-
 from .textpad import TextPad
+from ..tab_view import AbstractTabView
 
 
-class TabbedTextpad(ttk.Notebook):
+class TabbedTextpad(AbstractTabView):
 
     NEW_TAB_BASENAME = "new%d"
     
-    def __init__(self, parent, *args, tabposition='nw', **kwargs):
+    def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
-        self.parent = parent
-        
-        self.tab_widgets = {}
+
         self.set_options()
-        self.bind_keys()
         self.add_tab()
         
-    @property
-    def tab_names(self):
-        return [self.tab(name, option="text") for name in self.tabs()]
-        
-    def add_tab(self, event=None, text=None, frame_kwargs={}, textpad_kwargs={}, tab_kwargs={}):
-        child = tk.Frame(self, **frame_kwargs)
-        pad = TextPad(child, **textpad_kwargs)
-        pad.pack(expand=True, fill=tk.BOTH)
-        if text is None:
-            i = 1
-            text = self.NEW_TAB_BASENAME % i
-            while text in self.tab_names:
-                i += 1
-                text = self.NEW_TAB_BASENAME % i
-                
-        old_tabs = self.tabs()
-        self.add(child, text=text, **tab_kwargs)
-        new_tab = [tab for tab in self.tabs() if tab not in old_tabs][0]
-        self.tab_widgets[new_tab] = child
-        self.bind_child_keys(pad)
-        self.select(new_tab)
-        return new_tab, child, pad
+    def add_tab(self, event=None, widget=None, text=None, **kwargs):
+        if widget is None:
+            return self._add_default_tab(text=None, **kwargs)
+        else:
+            return super().add_tab(widget=widget)
         
     def bind_keys(self):
+        super().bind_keys()
         for key in ['<Control-n>', '<Control-N>']:
             self.bind(key, self.add_tab)
-        self.bind('<Button-3>', self.on_right_click)
             
     def bind_child_keys(self, child):
         for key in ['<Control-n>', '<Control-N>']:
             child.bind(key, self.add_tab)
-            
-    def close_tab(self, index):
-        self.forget(index)
-        if len(self.tab_names) == 0:
-            self.add_tab()
-            
-    def get_frame(self, index):
-        return self.tab_widgets[self.tabs()[index]]
-    
+
     def get_widget(self, index, widget='!textpad'):
-        return self.get_frame(index).children[widget]
+        return super().get_widget(index, widget=widget)
         
     def on_right_click(self, event=None):
         if event.widget.identify(event.x, event.y) == 'label':
             index = event.widget.index('@%d,%d' % (event.x, event.y))
-            popup = TabPopup(self, index)
-            popup.tk_popup(event.x_root, event.y_root)
+            frame = self.get_container(index)
+
+            if '!textpad' in frame.children:
+                popup = _TextpadTabPopup(self, index)
+                popup.tk_popup(event.x_root, event.y_root)
             
     def save_tab(self, index):
         pad = self.get_widget(index)
@@ -81,9 +55,20 @@ class TabbedTextpad(ttk.Notebook):
             
     def set_options(self):
         self.option_add('*tearOff', False)
+
+    def _add_default_tab(self, text=None, frame_kwargs={}, textpad_kwargs={}, tab_kwargs={}):
+        child = tk.Frame(self, **frame_kwargs)
+        new_tab = super().add_tab(widget=child, text=text, tab_kwargs=tab_kwargs)
+
+        pad = TextPad(child, **textpad_kwargs)
+        pad.pack(expand=True, fill=tk.BOTH)
+
+        self.bind_child_keys(pad)
+
+        return new_tab, child, pad
             
             
-class TabPopup(tk.Menu):
+class _TextpadTabPopup(tk.Menu):
     
     def __init__(self, parent, tab_index):
         super().__init__(parent)
