@@ -1,14 +1,12 @@
 import tkinter as tk
 
+from collections import namedtuple
 from tkinter import ttk
 from uuid import uuid4
 
 
 def DEFAULT_TREE_FILTER(k):
-    if k.startswith('_'):
-        return False
-    else:
-        return True
+    return not k.startswith('_')
 
 
 def tree_node(o, parent=None, iid=None, name=None):
@@ -23,11 +21,13 @@ def tree_node(o, parent=None, iid=None, name=None):
 
 class ObjectTree(ttk.Treeview):
 
-    def __init__(self, parent=None, topdict={}, columns=('Value',), tree_filter=DEFAULT_TREE_FILTER, **kwargs):
+    def __init__(self, parent=None, topdict={}, columns=('Value',),
+                 command_initiators=[], tree_filter=DEFAULT_TREE_FILTER, **kwargs):
         super().__init__(parent, columns=columns, **kwargs)
         self.parent = parent
         self.topdict = topdict
         self.tree_filter = tree_filter
+        self.command_initiators = DEFAULT_COMMAND_INITIATORS + command_initiators
         self._child_nodes = []
         self._id_node_dict = {}
         self._node_id_dict = {}
@@ -79,7 +79,7 @@ class ObjectTree(ttk.Treeview):
     def on_right_click(self, event=None):
         node = self.get_node()
         if node is not None:
-            node.on_right_click(event)
+            node.on_right_click(event, command_initiators=self.command_initiators)
 
     def set_column_titles(self, columns):
         for column in columns:
@@ -182,13 +182,15 @@ class TreeNode(object):
     def on_open(self, event=None):
         self.refresh_children()
 
-    def on_right_click(self, event=None):
-        if isinstance(self.parent, ObjectTree):
-            popup = _TopDictNodePopupMenu(self.parent)
-            try:
-                popup.tk_popup(event.x_root, event.y_root, 0)
-            finally:
-                popup.grab_release()
+    def on_right_click(self, event=None, command_initiators=[]):
+        commands = {}
+        for cmd in command_initiators:
+            if cmd.filter(self, event):
+                commands[cmd.label] = cmd.callback(self)
+
+        if commands:
+            popup = _NodePopupMenu(self.parent, commands=commands)
+            popup.show_popup(event)
 
     def refresh_children(self):
         pass
@@ -237,14 +239,47 @@ class DictTreeNode(IterableTreeNode):
             self.id_node_dict[iid] = node
 
 
-class _TopDictNodePopupMenu(tk.Menu):
+TreeNodeCommandInitiator = namedtuple('TreeNodeCommandInitiator', ['filter', 'label', 'callback'])
 
-    def __init__(self, parent, *args, tearoff=0, **kwargs):
+
+class _NodePopupMenu(tk.Menu):
+
+    def __init__(self, parent, *args, tearoff=0, commands={}, **kwargs):
         super().__init__(parent, *args, tearoff=tearoff, **kwargs)
 
         self.parent = parent
 
-        self.add_command(label="Delete", command=self.parent._delete_selected_topdict_item)
+        self.labels = list(commands.keys())
+        self.commands = list(commands.values())
+
+        for label, command in commands.items():
+            self.add_command(label=label, command=command)
+
+    def show_popup(self, event):
+        try:
+            for label, command in zip(self.labels, self.commands):
+                def f(*args):
+                    return command(event=event)
+                self.entryconfig(label, command=f)
+            self.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.grab_release()
+
+
+class _DeleteTopdictItemInitiator(object):
+
+    label = "Delete"
+
+    @staticmethod
+    def callback(node):
+        return node.parent._delete_selected_topdict_item
+
+    @staticmethod
+    def filter(node, event=None):
+        return True if isinstance(node.parent, ObjectTree) else False
+
+
+DEFAULT_COMMAND_INITIATORS = [_DeleteTopdictItemInitiator]
 
 
 if __name__ == "__main__":
