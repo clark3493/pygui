@@ -1,0 +1,1 @@
+from ._abstract_addin import AbstractAddin, AbstractMenubarAddin
