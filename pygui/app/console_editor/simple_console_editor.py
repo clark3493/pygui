@@ -15,10 +15,12 @@ from widget.interpreter import Console
 
 class SimpleConsoleEditor(tk.Frame):
     
-    def __init__(self, parent=None, locals={}, configure=True, **kwargs):
+    def __init__(self, parent=None, locals={}, configure=True, addins=[], **kwargs):
         super().__init__(parent, **kwargs)
         self.parent = parent
         self.parent.title("PyGUI Console Editor")
+
+        self.addins = {}
 
         if configure:
             #self.button_bar = _ButtonBar(self)
@@ -31,6 +33,9 @@ class SimpleConsoleEditor(tk.Frame):
 
             self._configure_ui()
             self._bind_shortcuts()
+
+            for addin in addins:
+                addin(self)
         
     def about(self, event=None):
         tk.messagebox.showinfo("About PyGUI", "Eventually, an informative message should go here...")
