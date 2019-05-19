@@ -9,8 +9,14 @@ def DEFAULT_TREE_FILTER(k):
     return not k.startswith('_')
 
 
+USER_DEFINED_NODES = {}
+
+
 def tree_node(o, parent=None, iid=None, name=None):
     name = str(name)
+    for filt, user_node in USER_DEFINED_NODES.items():
+        if filt(o):
+            return user_node(o, parent, iid, name=name)
     if any(isinstance(o, c) for c in (list, tuple)):
         return IterableTreeNode(o, parent, iid, name=name)
     elif isinstance(o, dict):
