@@ -1,3 +1,2 @@
 from .console_editor import ConsoleEditorInterface
 from .console_object_tree import ConsoleObjectTreeInterface
-from .editor_object_tree import TabbedEditorObjectTreeInterface
