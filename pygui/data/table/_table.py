@@ -5,26 +5,22 @@ from openpyxl.utils import get_column_letter
 from tkinter import Scrollbar
 
 
-def cellname(j, i, style='excel'):
-    if style == 'excel':
-        return f'{get_column_letter(i)}{str(j)}'
-    elif style == 'array':
-        return f'{j},{i}'
-    else:
-        raise ValueError(f"Unrecognized cell name style: {style}")
+# TODO: TABLE CELL WIDTH FEATURE DOESNT SEEM TO WORK
+# TODO: BREAK TABLE CELLS AND LABELS INTO SEPARATE FRAMES SO THAT LABELS ARE ALWAYS IN VIEW AFTER SCROLLING
 
 
 class Cell(tk.Entry):
 
-    def __init__(self, parent, j, i, siblings, **kwargs):
+    def __init__(self, parent, j, i, siblings, index_style='excel', **kwargs):
         self.var = tk.StringVar()
-        super().__init__(parent, textvariable=self.var)
+        kws = {'font': kwargs['font']} if 'font' in kwargs else {}
+        super().__init__(parent, textvariable=self.var, **kws)
 
         self.col = i
         self.row = j
         self.siblings = siblings
-        style = 'excel' if 'index_style' not in kwargs else kwargs['index_style']
-        self.name = cellname(j, i, style=style)
+
+        self.name = parent.master.cellname(j, i, style=index_style, **kws)
 
         self.var.set('')
 
@@ -45,7 +41,7 @@ class Cell(tk.Entry):
 
 class _CellOptions(object):
 
-    def __init__(self, cell, justify='right', readonly=True, index_style='excel'):
+    def __init__(self, cell, justify='right', readonly=True, index_style='excel', **kwargs):
         self._justify  = None
         self._readonly = None
         self._index_style    = index_style
@@ -111,15 +107,47 @@ class Table(tk.Canvas):
     def col_indices(self):
         if self.options.index_style == 'excel':
             return range(1, self.ncols+1)
-        elif self.options.index_style == 'array':
+        elif self.options.index_style in ('array', 'custom'):
             return range(self.ncols)
 
     @property
     def row_indices(self):
         if self.options.index_style == 'excel':
             return range(1, self.nrows+1)
-        elif self.options.index_style == 'array':
+        elif self.options.index_style in ('array', 'custom'):
             return range(self.nrows)
+
+    def cellname(self, j, i, style='excel'):
+        if style == 'excel':
+            return f'{get_column_letter(i)}{str(j)}'
+        elif style == 'array':
+            return f'{j},{i}'
+        elif style == 'custom':
+            return f'{self.options.column_labels[i]}[{self.options.row_labels[j]}]'
+        else:
+            raise ValueError(f"Unrecognized cell name style: {style}")
+
+    def get_column_label(self, index):
+        style = self.options.index_style
+        if style == 'array':
+            return str(index)
+        elif style == 'excel':
+            return get_column_letter(index+1)
+        elif style == 'custom':
+            return self.options.column_labels[index]
+        else:
+            raise ValueError(f"Unrecognized index style: {style}")
+
+    def get_row_label(self, index):
+        style = self.options.index_style
+        if style == 'array':
+            return str(index)
+        elif style == 'excel':
+            return str(index+1)
+        elif style == 'custom':
+            return self.options.row_labels[index]
+        else:
+            raise ValueError(f"Unrecognized index style: {style}")
 
     def hide_labels(self):
         self.hide_row_labels()
@@ -149,9 +177,12 @@ class Table(tk.Canvas):
         data = self._prep_data(data)
         for j, row in enumerate(self.row_indices):
             for i, col in enumerate(self.col_indices):
-                name = cellname(row, col, style=self.options.index_style)
+                name = self.cellname(row, col, style=self.options.index_style)
                 cell = self.cells[name]
                 cell.value = data[j, i]
+
+    def set_label_font(self, font):
+        pass
 
     def _add_scrollbars(self):
         self.horizontal_scrollbar = Scrollbar(self, orient=tk.HORIZONTAL)
@@ -181,21 +212,29 @@ class Table(tk.Canvas):
         self.cellframe = tk.Frame(self)
         self.cellframe.pack(side=tk.TOP, fill=tk.BOTH)
 
+        label_kws = {'font': self.options.default_label_font} if self.options.default_label_font is not None else {}
+        cell_kws  = {'font': self.options.default_cell_font}  if self.options.default_cell_font is not None else {}
+        label_kws['width'] = self.options.default_cell_width
+        cell_kws['width']  = self.options.default_cell_width
+        if self.options.column_labels is not None:
+            cell_kws['column_labels'] = self.options.column_labels
+            cell_kws['row_labels'] = self.options.row_labels
+
         # column_labels
         blank = tk.Label(self.cellframe)
         blank.grid(row=0, column=0)
         self._row_labels.append(blank)
         self._col_labels.append(blank)
         for i in range(1, self.ncols+1):
-            label_text = str(i-1) if self.options.index_style == 'array' else get_column_letter(i)
-            label = tk.Label(self.cellframe, text=label_text, font='bold')
+            label_text = self.get_column_label(i-1)
+            label = tk.Label(self.cellframe, text=label_text, **label_kws)
             label.grid(row=0, column=i)
             self._col_labels.append(label)
 
         # fill in the rows
         for j in range(1, self.nrows+1):
-            label_text = str(j-1) if self.options.index_style == 'array' else str(j)
-            rowlabel = tk.Label(self.cellframe, text=label_text, font='bold')
+            label_text = self.get_row_label(j-1)
+            rowlabel = tk.Label(self.cellframe, text=label_text, **label_kws)
             rowlabel.grid(row=j, column=0)
             self._row_labels.append(rowlabel)
             for i in range(1, self.ncols+1):
@@ -203,7 +242,8 @@ class Table(tk.Canvas):
                 col_index = i if self.options.index_style == 'excel' else i-1
                 cell = Cell(self.cellframe, row_index, col_index, self.cells,
                             readonly=self.options.readonly,
-                            index_style=self.options.index_style)
+                            index_style=self.options.index_style,
+                            **cell_kws)
                 self.cells[cell.name] = cell
                 cell.grid(row=j, column=i)
 
@@ -233,15 +273,26 @@ class Table(tk.Canvas):
 
 class _TableOptions(object):
 
-    def __init__(self, table, readonly=True, index_style='excel', labels_on=True, **kwargs):
+    def __init__(self, table, readonly=True, index_style='excel', labels_on=True,
+                 column_labels=None, row_labels=None):
         self.table = table
 
         self._labels_on   = None
         self._readonly    = None
         self._index_style = index_style
+        self._column_labels = [str(x) for x in column_labels] if column_labels is not None else None
+        self._row_labels    = [str(x) for x in row_labels] if row_labels is not None else None
 
         self.labels_on    = labels_on
         self.readonly     = readonly
+
+        self.default_cell_font = None
+        self.default_label_font = None
+        self.default_cell_width = 4
+
+    @property
+    def column_labels(self):
+        return self._column_labels
 
     @property
     def index_style(self):
@@ -268,6 +319,10 @@ class _TableOptions(object):
         self._readonly = value
         for cell in self.table.cells.values():
             cell.options.readonly = value
+
+    @property
+    def row_labels(self):
+        return self._row_labels
 
 
 if __name__ == "__main__":
