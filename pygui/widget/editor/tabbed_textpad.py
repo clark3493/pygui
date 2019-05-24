@@ -20,7 +20,7 @@ class TabbedTextpad(AbstractTabView):
         if widget is None:
             return self._add_default_tab(text=None, **kwargs)
         else:
-            return super().add_tab(widget=widget)
+            return super().add_tab(widget=widget, text=text)
         
     def bind_keys(self):
         super().bind_keys()
