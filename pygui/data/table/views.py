@@ -10,7 +10,7 @@ class ArrayTableView(Table):
         assert len(array.shape) == 2
 
         nrows, ncols = array.shape
-        super().__init__(parent, nrows=nrows, ncols=ncols, data=array, **kwargs)
+        super().__init__(parent, nrows=nrows, ncols=ncols, data=array, index_style='array', **kwargs)
 
     @staticmethod
     def _prep_array(array):
@@ -22,3 +22,11 @@ class ArrayTableView(Table):
             array = array.reshape((1, array.shape[0]))
 
         return array
+
+
+class DataFrameView(Table):
+
+    def __init__(self, parent, df, **kwargs):
+        nrows, ncols = len(df.index), len(df.columns)
+        super().__init__(parent, nrows=nrows, ncols=ncols, data=df.to_numpy(),
+                         index_style='custom', column_labels=df.columns, row_labels=df.index)
