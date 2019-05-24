@@ -1,1 +1,0 @@
-from .array_table import CreateArrayViewInitator
