@@ -13,7 +13,7 @@ from app.addins.console import ConsoleAddin
 from app.addins.editor import TabbedEditorAddin
 from app.addins.misc import ExitAddin, HelpAddin
 from app.addins.object_tree import ObjectTreeAddin
-from app.addins.external import DataFrameAddin, NumPyAddin
+from app.addins.external import DataFrameAddin, MatplotlibAddin, NumPyAddin
 from app.interface import ConsoleEditorInterface, ConsoleObjectTreeInterface
 
 
@@ -34,8 +34,9 @@ class TreedConsoleEditor(AbstractApplication):
         ConsoleEditorInterface(self, menubar=True)
         ObjectTreeAddin(self, parent=self.paned_window_top, topdict=self.console.locals)
         ConsoleObjectTreeInterface(self)
-        NumPyAddin(self)
         DataFrameAddin(self)
+        MatplotlibAddin(self)
+        NumPyAddin(self)
         HelpAddin(self, menubar=True)
         ExitAddin(self, menubar=True)
 
