@@ -77,11 +77,6 @@ class _TextpadTabPopup(tk.Menu):
         
         self.add_command(label="Save", command=self.save_tab)
         self.add_command(label="Save As", command=self.save_tab_as)
-        self.add_separator()
-        self.add_command(label="Close", command=self.close_tab)
-        
-    def close_tab(self, event=None):
-        self.parent.close_tab(self.tab_index)
         
     def save_tab(self, event=None):
         self.parent.save_tab(self.tab_index)
