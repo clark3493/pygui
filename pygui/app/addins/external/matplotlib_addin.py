@@ -1,9 +1,14 @@
 import os
 import sys
 
+import matplotlib
 import tkinter as tk
 
+from matplotlib import backend_tools
+from matplotlib.backend_bases import FigureManagerBase
+from matplotlib.backend_managers import ToolManager
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends._backend_tk import StatusbarTk, ToolbarTk
 from matplotlib.figure import Figure
 
 LOCAL_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -58,9 +63,7 @@ class CreateFigureViewInitiator(object):
                     fig = node.obj
                     frame = tk.Frame(tab_view)
                     canvas = FigureCanvasTkAgg(fig, master=frame)
-                    #canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-                    toolbar = NavigationToolbar2Tk(canvas, frame)
-                    toolbar.update()
+                    canvas.manager = FigureManagerPyGUI(canvas, fig.number, frame)
                     canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
                     canvas.draw()
                     tab_view.add_tab(widget=frame, text=node.name)
@@ -69,3 +72,48 @@ class CreateFigureViewInitiator(object):
     @staticmethod
     def filter(node, event=None):
         return isinstance(node.obj, Figure)
+
+
+class FigureManagerPyGUI(FigureManagerBase):
+    """
+    A custom figure manager for PyGUI plot viewing.
+
+    This class was generated as a placeholder for figure managers which get called in the guts of matplotlib's
+    backend code. Without assigning a manager to to a canvas to be viewed in PyGUI, errors are constantly
+    generated while using the tools in the figure toolbar (although the tools still work fine).
+
+    See Also
+    --------
+    matplotlib.backends._backend_tk.FigureManagerTk:
+        The class whose attributes/functionality this class is intended to mimic
+    """
+    def __init__(self, canvas, num, window):
+        super().__init__(canvas, num)
+        self.window = window
+        self.canvas = canvas
+        self.toolmanager = self._get_toolmanager()
+        self.toolbar = self._get_toolbar()
+        self._num = num
+
+        if self.toolmanager:
+            backend_tools.add_tools_to_manager(self.toolmanager)
+            if self.toolbar:
+                backend_tools.add_tools_to_container(self.toolbar)
+
+        self._shown = False
+
+    def _get_toolbar(self):
+        if matplotlib.rcParams['toolbar'] == 'toolbar2':
+            toolbar = NavigationToolbar2Tk(self.canvas, self.window)
+        elif matplotlib.rcParams['toolbar'] == 'toolmanager':
+            toolbar = ToolbarTk(self.toolmanager, self.window)
+        else:
+            toolbar = None
+        return toolbar
+
+    def _get_toolmanager(self):
+        if matplotlib.rcParams['toolbar'] == 'toolmanager':
+            toolmanager = ToolManager(self.canvas.figure)
+        else:
+            toolmanager = None
+        return toolmanager
