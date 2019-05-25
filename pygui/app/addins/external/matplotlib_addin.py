@@ -22,9 +22,6 @@ from widget.tab_view import AbstractTabView
 from util.widget import find_widget_child_instance, find_widget_parent_instance
 
 
-# TODO: USING MATPLOTLIB TOOLBAR THROWS ATTRIBUTE ERROR EVEN THOUGH IT WORKS FINE. FIX THIS.
-
-
 class MatplotlibAddin(AbstractAddin):
 
     def __init__(self, app, menubar=None):
