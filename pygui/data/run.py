@@ -1,7 +1,12 @@
+import os
+
 import warnings
 
 from pandas import DataFrame, read_csv
 from uuid import uuid4
+
+
+# TODO: UPDATE DOCUMENTATION
 
 
 class Run(DataFrame):
@@ -10,12 +15,14 @@ class Run(DataFrame):
 
     Parameters
     ----------
+    *args
+        Variable length argument list to be passed to the super class constructor.
     name: str or None, optional. Default=None.
         Identifying name for the Run. See Note 1.
     description: str, optional. Default="".
         Additional details about the Run to be used in reports, etc.
-    *args
-        Variable length argument list to be passed to the super class constructor.
+    filepath: str or None, optional. Default=None.
+        Optional input to track the filepath the Run data originated from.
     **kwargs
         Arbitrary keyword arguments to be passed to the super class constructor.
 
@@ -28,11 +35,9 @@ class Run(DataFrame):
     --------
     .. [1] pandas.DataFrame
     """
-    def __init__(self, *args, name=None, description="", **kwargs):
+    def __init__(self, *args, name=None, description="", filepath=None, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self.name = name if name is not None else uuid4()
-        self.description = description
+        self.run_info = _RunInfo(name, description=description, filepath=filepath)
 
     @property
     def _constructor(self):
@@ -59,8 +64,15 @@ class Run(DataFrame):
         run: Run
             The Run containing the data from the CSV.
         """
-        name = filepath if name is None else name
-        return Run(read_csv(filepath, **kwargs), name=name, description=description)
+        return Run(read_csv(filepath, **kwargs), name=name, description=description, filepath=os.path.abspath(filepath))
+
+
+class _RunInfo(object):
+
+    def __init__(self, name, description="", filepath=None):
+        self.name = name if name is not None else uuid4()
+        self.description = description
+        self.filepath = filepath
 
 
 class RunSet(object):
