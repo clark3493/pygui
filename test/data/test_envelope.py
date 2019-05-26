@@ -46,6 +46,31 @@ class EnvelopeTestCase(unittest.TestCase):
         env = Envelope('A', 'B', [run1, run2])
         self.assertEqual(Envelope, type(env))
 
+    def test_load_envelope(self):
+        filepath = os.path.join(self.TESTDIR, 'SAVE_TEST.pkl')
+        run1 = self.setup_run1()
+        run2 = self.setup_run2()
+        env = Envelope('A', 'B', [run1, run2])
+        try:
+            env.save_envelope_data(filepath)
+            env2 = Envelope.from_envelope_data(filepath)
+            self.assertAllClose(env.envelope_points(closed=True), env2.envelope_points(closed=True))
+        finally:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+    def test_save_envelope(self):
+        filepath = os.path.join(self.TESTDIR, 'SAVE_TEST.pkl')
+        run1 = self.setup_run1()
+        run2 = self.setup_run2()
+        env = Envelope('A', 'B', [run1, run2])
+        try:
+            env.save_envelope_data(filepath)
+            self.assertTrue(os.path.exists(filepath))
+        finally:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
     @unittest.skip
     def test_envelope_indices_1(self):
         run = self.setup_run1()
@@ -117,6 +142,7 @@ class EnvelopeTestCase(unittest.TestCase):
         env1.plot(ax)
         plt.show()
 
+    @unittest.skip
     def test_multiprocess_enveloper(self):
         filepaths = [self.TEST_DATA1, self.TEST_DATA2]
         mpeg = MultiProcessEnvelopeGenerator(ncpus=2)
