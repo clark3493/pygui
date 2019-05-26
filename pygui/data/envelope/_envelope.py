@@ -4,6 +4,7 @@ import sys
 import collections
 import numpy as np
 import pickle
+import warnings
 
 from copy import deepcopy
 from scipy.spatial import ConvexHull
@@ -17,7 +18,7 @@ from data import Run
 from widget.plot import PickableAxes
 
 
-PointRef = collections.namedtuple('PointRef', ['run', 'run_id', 'index'])
+PointRef = collections.namedtuple('PointRef', ['run_name', 'index'])
 
 
 class Envelope(ConvexHull):
@@ -31,44 +32,35 @@ class Envelope(ConvexHull):
                  incremental=True,
                  name=None,
                  keep_all=False,
+                 run_info=None,
                  **kwargs):
-        self.xname = xname
-        self.yname = yname
-
-        self.name = name if name is not None else uuid4()
-        self.description = description
-        self.keep_all = keep_all
-
-        # store information for data persistence and envelope re-creation
-        self._incremental = incremental
-        self._initialization_args   = args
-        self._initialization_kwargs = kwargs
-
         if not any(isinstance(runs, o) for o in (list, tuple)):
             runs = [runs]
 
         if all(x is None for x in runs):
             raise ValueError("Must provide at least one active Run to the Envelope constuctor")
 
+        self.info = _EnvelopeInfo(self, xname, yname, *args, name=name, description=description,
+                                  keep_all=keep_all, incremental=incremental, **kwargs)
+
         self._refs = []
-        self._runs = []
+        self._runs = {}
+        self._run_info = {}
 
         inc = True if (len(runs) > 1 or incremental is True) else False
 
-        for run_index, run in enumerate(runs):
-            self.runs.append(run)
+        for run0_index, run in enumerate(runs):
             if run is not None:
-                run0 = run
                 break
-            else:
-                self._store_refs(run)
 
-        points0 = self._stack_points(run0[xname], run0[yname])
-        super().__init__(points0, *args, incremental=inc, **kwargs)
+        points = self._stack_points(run[self.info.xname], run[self.info.yname])
+        super().__init__(points, *args, incremental=inc, **kwargs)
+        self._store_run(run)
 
-        self._store_refs(run0)
-        for i, run in enumerate(runs[run_index+1:]):
-            self.add_run(run)
+        for i, run in enumerate(runs):
+            if i != run0_index:
+                info = None if run_info is None else run_info[i]
+                self.add_run(run, info=info)
 
         if inc and not incremental:
             self.close()
@@ -76,10 +68,6 @@ class Envelope(ConvexHull):
     @property
     def closed_vertices(self):
         return np.hstack([self.vertices, [self.vertices[0]]])
-
-    @property
-    def incremental(self):
-        return self._incremental
 
     @property
     def perimeter(self):
@@ -93,66 +81,59 @@ class Envelope(ConvexHull):
     def runs(self):
         return self._runs
 
+    @property
+    def run_info(self):
+        return self._run_info
+
     def absorb_envelopes(self, envelopes):
         if not any(isinstance(envelopes, o) for o in (list, tuple)):
             envelopes = [envelopes]
         for env in envelopes:
             self._absorb_envelope(env)
 
-    def add_run(self, run):
-        self._store_refs(run)
-        self.runs.append(run)
+    def add_run(self, run, info=None):
+        self._store_run(run, info=info)
         if run is not None:
-            x = run[self.xname]
-            y = run[self.yname]
+            x = run[self.info.xname]
+            y = run[self.info.yname]
             points = self._stack_points(x, y)
-            vertices0 = self.vertices.copy()
-            super(Envelope, self).add_points(points)
-            if not self.keep_all:
-                self._clean_refs(vertices0)
+            self.add_points(points)
+            if not self.info.keep_all:
+                self._clean_runs()
 
     def close(self):
         super().close()
-        self._incremental = False
-
-    def envelope_indices(self, closed=False):
-        vertices = self.closed_vertices if closed else self.vertices
-        return [self.refs[vertex].index for vertex in vertices]
-
-    def envelope_points(self, closed=False):
-        v = self.closed_vertices if closed else self.vertices
-        return self.points[v, :]
-
-    def envelope_refs(self, closed=False):
-        for index in self.envelope_indices(closed=closed):
-            yield self.refs[index]
-
-    def envelope_runs(self, closed=False):
-        for index in self.envelope_indices(closed=closed):
-            assert self.refs[index].run is not None
-            yield self.runs[self.refs[index].run_id]
-
-    def envelope_x(self, closed=False):
-        v = self.closed_vertices if closed else self.vertices
-        return self.points[v, 0]
-
-    def envelope_y(self, closed=False):
-        v = self.closed_vertices if closed else self.vertices
-        return self.points[v, 1]
+        self.info._incremental = False
 
     @classmethod
     def from_envelope_data(cls, filepath, **kwargs):
         with open(filepath, 'rb') as f:
             data = pickle.load(f, **kwargs)
-        env = Envelope(data['xname'],
-                       data['yname'],
-                       data['runs'],
-                       *data['initialization_args'],
-                       description=data['description'],
-                       incremental=data['incremental'],
-                       name=data['name'],
-                       keep_all=data['keep_all'],
-                       **data['initialization_kwargs'])
+        runs = []
+        run_info = []
+        for key, run in data['runs'].items():
+            info = data['run_info'][key]
+            if run is not None:
+                # DataFrame sub-classed attributes do not get pickled
+                #   have to re-initialize the Run object from the pickled DataFrame
+                name = info.name
+                description = info.description
+                filepath = info.filepath
+                run = Run(run, name=name, description=description, filepath=filepath)
+            runs.append(run)
+            run_info.append(info)
+        run_info = None if all(x is None for x in run_info) else run_info
+        info = data['info']
+        env = Envelope(info.xname,
+                       info.yname,
+                       runs,
+                       *info._initialization_args,
+                       description=info.description,
+                       incremental=info.incremental,
+                       name=info.name,
+                       keep_all=info.keep_all,
+                       run_info=run_info,
+                       **info._initialization_kwargs)
         return env
 
     @classmethod
@@ -172,52 +153,57 @@ class Envelope(ConvexHull):
 
     def get_envelope_data(self):
         data = {}
-        data['xname']       = self.xname
-        data['yname']       = self.yname
-        data['name']        = self.name
-        data['description'] = self.description
-        data['keep_all']    = self.keep_all
-        data['incremental'] = self.incremental
-        data['runs']        = self.runs
-        data['initialization_args']   = self._initialization_args
-        data['initialization_kwargs'] = self._initialization_kwargs
+        data['info'] = self.info.to_persistent_info()
+        data['runs'] = self.runs
+        data['run_info'] = self.run_info
         return data
 
+    def get_envelope_points(self, closed=False):
+        v = self.get_vertices(closed=closed)
+        return self.points[v, :]
+
+    def get_envelope_refs(self, closed=False):
+        return [self.refs[v] for v in self.get_vertices(closed=closed)]
+
+    def get_envelope_runs(self, closed=False):
+        for ref in self.get_envelope_refs(closed=closed):
+            yield self.runs[ref.run_name]
+
+    def get_envelope_run_indices(self, closed=False):
+        return [self.refs[v].index for v in self.get_vertices(closed=closed)]
+
+    def get_envelope_run_names(self, closed=False):
+        return [ref.run_name for ref in self.get_envelope_refs(closed=closed)]
+
+    def get_vertices(self, closed=False):
+        return self.closed_vertices if closed else self.vertices
+
     def plot(self, ax, *args, **kwargs):
+        p = self.perimeter
         if isinstance(ax, PickableAxes):
-            parents = list(self.envelope_runs(closed=True))
-            indices = list(self.envelope_indices(closed=True))
-            ax.plot(self.perimeter[:, 0], self.perimeter[:, 1], parent=parents, indices=indices, *args, **kwargs)
+            parents = list(self.get_envelope_runs(closed=True))
+            indices = list(self.get_envelope_run_indices(closed=True))
+            ax.plot(p[:, 0], p[:, 1], *args, parent=parents, indices=indices, **kwargs)
         else:
-            ax.plot(self.perimeter[:, 0], self.perimeter[:, 1], *args, **kwargs)
+            ax.plot(p[:, 0], p[:, 1], *args, **kwargs)
 
     def save_envelope_data(self, filepath, **kwargs):
-        assert filepath.endswith(".pkl")
+        if not filepath.endswith(".pkl"):
+            warnings.warn("Pickling envelope data to a filepath without a '.pkl' extension: %s" % filepath)
         data = self.get_envelope_data()
         with open(filepath, 'wb') as f:
             pickle.dump(data, f, **kwargs)
 
     def _absorb_envelope(self, env):
-        for run in env.runs:
-            self.add_run(run)
+        for name, run in env.runs.items():
+            run_info = env.run_info[name]
+            self.add_run(run, info=run_info)
 
-    def _clean_refs(self, indices):
-        cleaned_ids = []
-        for index in indices:
-            if index not in self.vertices:
-                old_ref = self.refs[index]
-                self.refs[index] = PointRef(run=None, run_id=old_ref.run_id, index=None)
-                cleaned_ids.append(old_ref.run_id)
-        active_run_ids = list(set([ref.run_id for ref in self.refs if ref.run is not None]))
-        for cid in cleaned_ids:
-            if cid not in active_run_ids:
-                self.runs[cid] = None
-
-    def _get_max_run_id(self):
-        try:
-            return self.refs[-1].run_id
-        except IndexError:
-            return -1
+    def _clean_runs(self):
+        envelope_run_names = self.get_envelope_run_names()
+        for name in self.runs.keys():
+            if name not in envelope_run_names:
+                self.runs[name] = None
 
     @staticmethod
     def _stack_points(*args):
@@ -225,16 +211,63 @@ class Envelope(ConvexHull):
         return np.hstack(arrs)
 
     def _store_refs(self, run):
-        run_id = self._get_max_run_id() + 1
-        len0 = len(self.refs)
-        if run is None:
-            self.refs.append(PointRef(run=run, run_id=run_id, index=None))
+        assert run is not None
+        for index in run.index:
+            self.refs.append(PointRef(run_name=run.run_info.name, index=index))
+
+    def _store_run(self, run, info=None):
+        if run is None and info is None:
+            raise ValueError("Must provide a _RunInfo object if no run is provided")
+
+        if run is not None:
+            try:
+                self.runs[run.run_info.name] = run
+                self.run_info[run.run_info.name] = run.run_info
+                self._store_refs(run)
+            except AttributeError:
+                print(run)
+                print(type(run))
+                print(dir(run))
+                print(run.run_info)
+                raise
         else:
-            for i in range(run.shape[0]):
-                itotal = len0 + i
-                runref = run if (itotal in self.vertices or self.keep_all) else None
-                iref = None if runref is None else run.index[i]
-                self.refs.append(PointRef(run=runref, run_id=run_id, index=iref))
+            self.runs[info.name] = run
+            self.run_info[info.name] = info
+
+
+class _PersistentEnvelopeInfo(object):
+
+    def __init__(self, xname, yname, *args, name=None, description="", keep_all=False,
+                 incremental=True, **kwargs):
+        self.xname = xname
+        self.yname = yname
+        self.name = name if name is not None else uuid4()
+        self.description = description
+        self.keep_all = keep_all
+        self._incremental = incremental
+        self._initialization_args = args
+        self._initialization_kwargs = kwargs
+
+    @property
+    def incremental(self):
+        return self._incremental
+
+
+class _EnvelopeInfo(_PersistentEnvelopeInfo):
+
+    def __init__(self, envelope, *args, **kwargs):
+        self.envelope = envelope
+        super().__init__(*args, **kwargs)
+
+    def to_persistent_info(self):
+        return _PersistentEnvelopeInfo(self.xname,
+                                       self.yname,
+                                       *self._initialization_args,
+                                       name=self.name,
+                                       description=self.description,
+                                       keep_all=self.keep_all,
+                                       incremental=self.incremental,
+                                       **self._initialization_kwargs)
 
 
 class EnvelopeSet(object):
