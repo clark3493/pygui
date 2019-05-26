@@ -54,7 +54,7 @@ class EnvelopeTestCase(unittest.TestCase):
         try:
             env.save_envelope_data(filepath)
             env2 = Envelope.from_envelope_data(filepath)
-            self.assertAllClose(env.envelope_points(closed=True), env2.envelope_points(closed=True))
+            self.assertAllClose(env.get_envelope_points(closed=True), env2.get_envelope_points(closed=True))
         finally:
             if os.path.exists(filepath):
                 os.remove(filepath)
@@ -130,16 +130,19 @@ class EnvelopeTestCase(unittest.TestCase):
             ax.text(env.points[vertex, 0], env.points[vertex, 1], str(vertex))
         plt.show()
 
-    @unittest.skip
     def test_plot_absorb_envelope(self):
         run1 = self.setup_run1()
         run2 = self.setup_run2()
         env1 = Envelope('A', 'B', run1)
         env2 = Envelope('A', 'B', run2)
-        env1.absorb_envelopes(env2)
+        env3 = Envelope('A', 'B', run1)
+        env3.absorb_envelopes(env2)
         ax = plt.subplot(111, projection='pickable')
         ax.options.annotation_data = ['C', 'D']
-        env1.plot(ax)
+        env1.plot(ax, label="1")
+        env2.plot(ax, label="2")
+        env3.plot(ax, label="combined")
+        ax.legend()
         plt.show()
 
     @unittest.skip
