@@ -17,7 +17,7 @@ class MultiProcessEnvelopeGenerator(object):
 
     def compute_envelope(self, xname, yname, filepaths):
         pool = mp.Pool(processes=self.ncpus)
-        env0 = Envelope.from_file(xname, yname, filepaths[0])
+        env0 = Envelope.from_csv(xname, yname, filepaths[0])
         inputs = [(xname, yname, filepath) for filepath in filepaths[1:]]
         data = pool.starmap(self.get_envelope_data, inputs)
         for x, y, parents, indices in data:
@@ -26,7 +26,7 @@ class MultiProcessEnvelopeGenerator(object):
 
     @staticmethod
     def get_envelope_data(xname, yname, filepath):
-        env = Envelope.from_file(xname, yname, filepath)
+        env = Envelope.from_csv(xname, yname, filepath)
         return (env.envelope_x(closed=False),
                 env.envelope_y(closed=False),
                 env.envelope_runs(closed=False),
