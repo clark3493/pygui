@@ -74,6 +74,12 @@ class _RunInfo(object):
         self.description = description
         self.filepath = filepath
 
+    def __str__(self):
+        s  = f"RunInfo for Run: {self.name}\n"
+        s += f"\tFilepath:\t{self.filepath}\n"
+        s += f"\tDescription:\n\t\t{self.description}"
+        return s
+
 
 class RunSet(object):
 
