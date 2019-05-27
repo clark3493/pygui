@@ -19,6 +19,7 @@ class EnvelopeTestCase(unittest.TestCase):
     TESTDIR = os.path.dirname(os.path.abspath(__file__))
     TEST_DATA1 = os.path.join(TESTDIR, "test_data.csv")
     TEST_DATA2 = os.path.join(TESTDIR, "test_data2.csv")
+    TEST_DATA3 = os.path.join(TESTDIR, "test_data3.csv")
 
     def assertAllClose(self, a, b):
         self.assertTrue(np.allclose(a, b))
@@ -28,6 +29,9 @@ class EnvelopeTestCase(unittest.TestCase):
 
     def setup_run2(self):
         return Run.read_csv(self.TEST_DATA2)
+
+    def setup_run3(self):
+        return Run.read_csv(self.TEST_DATA3)
 
     def test_closed_vertices_envelope1(self):
         run = self.setup_run1()
@@ -104,6 +108,13 @@ class EnvelopeTestCase(unittest.TestCase):
         env = Envelope('A', 'B', run)
         self.assertTrue(type(env) is Envelope)
 
+    def test_forget_run(self):
+        run1 = self.setup_run1()
+        run2 = self.setup_run2()
+        run3 = self.setup_run3()    # bounded by run1 and run2
+        env = Envelope('A', 'B', [run1, run2, run3])
+        self.assertTrue(env.runs[run3.run_info.name] is None)
+
     @unittest.skip
     def test_plot_envelope_multiple_runs(self):
         run1 = self.setup_run1()
@@ -133,15 +144,18 @@ class EnvelopeTestCase(unittest.TestCase):
     def test_plot_absorb_envelope(self):
         run1 = self.setup_run1()
         run2 = self.setup_run2()
+        run3 = self.setup_run3()
         env1 = Envelope('A', 'B', run1)
         env2 = Envelope('A', 'B', run2)
-        env3 = Envelope('A', 'B', run1)
-        env3.absorb_envelopes(env2)
+        env3 = Envelope('A', 'B', run3)
+        envall = Envelope('A', 'B', run1)
+        envall.absorb_envelopes([env2, env3])
         ax = plt.subplot(111, projection='pickable')
         ax.options.annotation_data = ['C', 'D']
         env1.plot(ax, label="1")
         env2.plot(ax, label="2")
-        env3.plot(ax, label="combined")
+        env3.plot(ax, label="3")
+        envall.plot(ax, label="combined")
         ax.legend()
         plt.show()
 
