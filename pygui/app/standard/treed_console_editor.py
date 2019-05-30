@@ -48,6 +48,7 @@ class TreedConsoleEditor(AbstractApplication):
         self.menubar.add_cascade(label="File", menu=self.menubar.filemenu)
         self.menubar.add_cascade(label="Edit", menu=self.menubar.editmenu)
         self.menubar.add_cascade(label="Run", menu=self.menubar.runmenu)
+        self.menubar.add_cascade(label="Preferences", menu=self.menubar.prefmenu)
         self.menubar.add_cascade(label="Help", menu=self.menubar.helpmenu)
 
     def _configure_ui(self):
