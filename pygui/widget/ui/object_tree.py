@@ -103,7 +103,7 @@ class ObjectTree(ttk.Treeview):
                 iid = uuid4()
                 node = tree_node(v, self, iid=iid, name=k)
                 self.child_nodes.append(node)
-                self.insert('', tk.END, iid=iid, text=node.name.replace(" ", "-"), value=node.value.replace(" ", "-"))
+                self.insert('', tk.END, iid=iid, text=node.name, value=[node.value])
                 if isinstance(node, IterableTreeNode):
                     node.refresh_children()
                 self.id_node_dict[iid] = node
@@ -170,7 +170,7 @@ class TreeNode(object):
             iid = uuid4()
             node = tree_node(o, self, iid=iid)
             self.child_nodes.append(node)
-            root.insert(self.iid, tk.END, iid=iid, text=node.name.replace(" ", "-"), value=node.value.replace(" ", "-"))
+            root.insert(self.iid, tk.END, iid=iid, text=node.name, value=[node.value])
             if isinstance(node, IterableTreeNode):
                 node.refresh_children()
             self.id_node_dict[iid] = node
@@ -218,7 +218,7 @@ class IterableTreeNode(TreeNode):
             node = tree_node(o, self, iid=iid)
             self.child_nodes.append(node)
             name = '[' + str(i) + ']'
-            root.insert(self.iid, tk.END, iid=iid, text=name, value=node.value.replace(" ", "-"))
+            root.insert(self.iid, tk.END, iid=iid, text=name, value=[node.value])
             if isinstance(node, IterableTreeNode):
                 node.refresh_children()
             self.id_node_dict[iid] = node
@@ -239,7 +239,7 @@ class DictTreeNode(IterableTreeNode):
             node = tree_node(v, self, iid=iid, name=k)
             self.child_nodes.append(node)
             root = self.get_tree_root()
-            root.insert(self.iid, tk.END, iid=iid, text=node.name.replace(" ", "-"), value=node.value.replace(" ", "-"))
+            root.insert(self.iid, tk.END, iid=iid, text=node.name, value=[node.value])
             if isinstance(node, IterableTreeNode):
                 node.refresh_children()
             self.id_node_dict[iid] = node
