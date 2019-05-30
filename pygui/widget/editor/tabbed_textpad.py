@@ -3,7 +3,7 @@ import os
 import tkinter as tk
 
 from .textpad import TextPad
-from ..tab_view import AbstractTabView
+from ..tab_view import AbstractTabView, _AbstractTabViewOptions
 
 
 class TabbedTextpad(AbstractTabView):
@@ -13,6 +13,7 @@ class TabbedTextpad(AbstractTabView):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
 
+        self.options = _TabbedTextpadOptions()
         self.set_options()
         self.add_tab()
         
@@ -66,6 +67,14 @@ class TabbedTextpad(AbstractTabView):
         self.bind_child_keys(pad)
 
         return new_tab, child, pad
+
+
+class _TabbedTextpadOptions(_AbstractTabViewOptions):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.text_entry_options = {'tab spacing': 4}
             
             
 class _TextpadTabPopup(tk.Menu):
