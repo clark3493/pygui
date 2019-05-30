@@ -3,14 +3,17 @@ import sys
 
 import tkinter as tk
 
+from tkinter import messagebox
+
 LOCAL_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.dirname(os.path.dirname(LOCAL_DIR))
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-from util.widget import add_menu_command_safe
+from util.widget import add_menu_command_safe, find_widget_child_instance
 from widget.editor import TabbedTextpad
 from ._abstract_addin import AbstractAddin, AbstractMenubarAddin
+from .preferences import initialize_preferences
 
 
 class TabbedEditorAddin(AbstractAddin):
@@ -109,6 +112,7 @@ class _TabbedEditorMenubarAddin(AbstractMenubarAddin):
     def add_menus(cls, menubar):
         cls.add_edit_menu(menubar)
         cls.add_file_menu(menubar)
+        cls.add_preferences_menu(menubar)
 
     @classmethod
     def add_edit_menu(cls, menubar):
@@ -138,3 +142,74 @@ class _TabbedEditorMenubarAddin(AbstractMenubarAddin):
         add_menu_command_safe(menu, "Save As", command=menubar.parent.save_as)
 
         menubar.filemenu = menu
+
+    @classmethod
+    def add_preferences_menu(cls, menubar):
+        pref = initialize_preferences(menubar.parent)
+        if 'prefmenu' not in dir(menubar):
+            menubar.prefmenu = tk.Menu(menubar, tearoff=0)
+            menu = cls.initialize_menu(menubar.prefmenu)
+            add_menu_command_safe(menu, "Preferences...", command=pref.deiconify)
+            menubar.prefmenu = menu
+        f = _EditorPreferencesWindow(pref.container)
+        f.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        pref.add_frame("Text Editing", f)
+
+
+class _EditorPreferencesWindow(tk.Frame):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        options = self.get_editor_options()
+
+        self.tab_spacing_label = tk.Label(self, text="Tab spacing")
+        self.tab_spacing_var   = tk.StringVar()
+        self.tab_spacing_entry = tk.Entry(self,
+                                          text=options.text_entry_options.tab_spacing,
+                                          textvariable=self.tab_spacing_var)
+
+        self.last_tab_spacing = None
+
+        self.configure_window()
+        self.bind_keys()
+
+    def bind_keys(self):
+        self.tab_spacing_entry.bind("<FocusIn>", self.on_tab_spacing_gain_focus)
+        self.tab_spacing_entry.bind("<FocusOut>", self.on_tab_spacing_lose_focus)
+        self.tab_spacing_entry.bind("<Return>", self.on_tab_spacing_lose_focus)
+
+    def configure_window(self):
+        self.tab_spacing_label.grid(row=0, column=0)
+        self.tab_spacing_entry.grid(row=0, column=1)
+
+    def get_editor(self):
+        window = self.winfo_toplevel()
+        app = window.parent
+        return find_widget_child_instance(app, TabbedTextpad)
+
+    def get_editor_options(self):
+        editor = self.get_editor()
+        return editor.options
+
+    def on_tab_spacing_gain_focus(self, event=None):
+        self.last_tab_spacing = self.tab_spacing_var.get()
+
+    def on_tab_spacing_lose_focus(self, event=None):
+        try:
+            value = int(self.tab_spacing_var.get())
+        except (TypeError, ValueError):
+            value = None
+            if self.tab_spacing_var.get() == "":
+                pass
+            else:
+                msg  = f"'{self.tab_spacing_entry.get()}' is an invalid value for tab spacing. Entry should be an integer "
+                msg += f"representing the number of spaces per tab."
+                messagebox.showerror("User entry error!", msg)
+                self.tab_spacing_var.set(self.last_tab_spacing if self.last_tab_spacing is not None else "")
+                self.last_tab_spacing = None
+
+        if value:
+            options = self.get_editor_options()
+            options.text_entry_options.tab_spacing = value
+
