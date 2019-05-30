@@ -20,6 +20,7 @@ class AbstractTabView(ttk.Notebook):
         self.parent = parent
         self._active = None
 
+        self.options = _AbstractTabViewOptions(self)
         self.tab_widgets = {}
         self.bind_keys()
 
@@ -128,3 +129,11 @@ class AbstractTabView(ttk.Notebook):
                                          })
                                      ]})
         ])
+
+
+class _AbstractTabViewOptions(object):
+
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.parent = parent
+        # currently just a placeholder
