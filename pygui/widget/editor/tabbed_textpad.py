@@ -66,7 +66,7 @@ class TabbedTextpad(AbstractTabView):
 
         self.bind_child_keys(pad)
 
-        return new_tab, child, pad
+        return new_tab
 
 
 class _TabbedTextpadOptions(_AbstractTabViewOptions):
