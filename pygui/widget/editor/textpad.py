@@ -1,4 +1,5 @@
 import tkinter as tk
+import tkinter.font as tkfont
 
 from .textpad_config import TextPadConfig
 
@@ -21,6 +22,11 @@ class TextPad(tk.Text):
         
     def connect_external_module_features(self, config):
         config.connect(self)
+
+    def set_tab_spacing(self, value):
+        font = tkfont.Font(font=self['font'])
+        tab = font.measure(' ' * value)
+        self.config(tabs=tab)
         
         
 if __name__ == "__main__":
