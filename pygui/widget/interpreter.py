@@ -1,7 +1,7 @@
 import os
 import sys
 
-
+import logging
 import tkinter as tk
 
 from code import InteractiveConsole
@@ -23,12 +23,17 @@ except AttributeError:
     sys.ps2 = '... '
 
 
+logger = logging.getLogger(__name__)
+
+
 class RedirectedInterpreter(InteractiveConsole):
     
     def __init__(self, 
                  stdout=sys.stdout,
                  stderr=sys.stderr,
                  excepthook=sys.excepthook,
+                 history_filepath=None,
+                 history_loglevel=logging.INFO,
                  locals=None):
         super().__init__(locals=locals)
         
@@ -41,20 +46,51 @@ class RedirectedInterpreter(InteractiveConsole):
         self.locals['__console_excepthook__'] = self.excepthook
         
         self._waiting = False
+
+        self.logger = None
+        self._initialize_logger(history_filepath, history_loglevel)
+
+    def log(self, msg, level='info'):
+        if self.logger is not None:
+            self._logmethods[level](msg)
         
     def pushr(self, string):
         with redirect(stdout=self.stdout,
                       stderr=self.stderr,
                       excepthook=self.excepthook):
             self._waiting = self.push(string)
-                
+            self.log(string)
+
+    def set_history_loglevel(self, level):
+        if self.logger is None:
+            raise RuntimeError("No history file logger has been created.")
+        self.logger.setLevel(level)
+
+    def _initialize_logger(self, path, level):
+        if path is None:
+            return
+
+        self.logger = logging.getLogger(str(self.__class__))
+        fh = logging.FileHandler(path)
+        fh.setLevel(logging.DEBUG)
+        self.logger.addHandler(fh)
+        self.logger.setLevel(level)
+
+    @property
+    def _logmethods(self):
+        return None if self.logger is None else {'debug': self.logger.debug,
+                                                 'info': self.logger.info,
+                                                 'warning': self.logger.warning,
+                                                 'error': self.logger.error,
+                                                 'critical': self.logger.critical}
+
     
 class Console(tk.Frame, RedirectedInterpreter):
     
     def __init__(self, parent=None,
                        locals=None,
-                       history_file=None,
                        auto_view=True,
+                       history_filepath=None,
                        standalone=False,
                        command_callback=None):
         tk.Text.__init__(self, parent)
@@ -62,6 +98,7 @@ class Console(tk.Frame, RedirectedInterpreter):
                                        stdout=_ConsoleStream(self, fileno=1),
                                        stderr=_ConsoleStream(self, foreground="red", fileno=2),
                                        excepthook=print_error,
+                                       history_filepath=history_filepath,
                                        locals=locals)
         self.parent = parent
         
@@ -104,18 +141,26 @@ class Console(tk.Frame, RedirectedInterpreter):
                       stderr=self.stderr,
                       excepthook=self.excepthook):
             if not self._waiting and print_input:
-                sys.stdout.write("%s%s\n" % (sys.ps1, string))
+                sys.stdout.write(f"{sys.ps1}{string}\n")
+                self.log(string, level='info')
             elif print_input:
-                sys.stdout.write("%s\n" % (string))
+                sys.stdout.write(f"{string}\n")
+                self.log(string, level='info')
             self._waiting = self.push(string)
             if self._waiting and print_input:
-                sys.stdout.write("%s" % sys.ps2)
+                sys.stdout.write(f"{sys.ps2}")
 
         if self.command_callback is not None:
             self.command_callback()
     
     def write(self, string, foreground="black"):
         self.output.write(string, foreground=foreground)
+
+    def _initialize_logger(self, path, level):
+        super()._initialize_logger(path, level)
+        if self.logger is not None:
+            #self.stdout.add_secondary_output(self.logger.debug)
+            self.stderr.add_secondary_output(self.logger.debug)
         
         
 class _ConsoleInput(tk.Entry):
@@ -208,12 +253,23 @@ class _ConsoleStream(object):
         self.parent = parent
         self.foreground = foreground
         self._fileno = fileno
+
+        self.hooks = []
+        self.hook_args = []
+        self.hook_kwargs = []
+
+    def add_secondary_output(self, hook, *args, **kwargs):
+        self.hooks.append(hook)
+        self.hook_args.append(args)
+        self.hook_kwargs.append(kwargs)
         
     def fileno(self):
         return self._fileno
     
     def write(self, string):
         self.parent.write(string, foreground=self.foreground)
+        for hook, args, kwargs in zip(self.hooks, self.hook_args, self.hook_kwargs):
+            hook(string, *args, **kwargs)
         
         
 if __name__ == "__main__":
