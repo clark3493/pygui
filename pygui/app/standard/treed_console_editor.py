@@ -19,9 +19,11 @@ from app.interface import ConsoleEditorInterface, ConsoleObjectTreeInterface
 
 class TreedConsoleEditor(AbstractApplication):
 
-    def __init__(self, parent=None, title="PyGUI Console Editor", **kwargs):
+    def __init__(self, parent=None, title="PyGUI Console Editor", history_filepath=None, **kwargs):
         self.paned_window_main = None
         self.paned_window_top = None
+
+        self.console_history_filepath = history_filepath
 
         super().__init__(parent=parent, title=title, **kwargs)
 
@@ -30,7 +32,7 @@ class TreedConsoleEditor(AbstractApplication):
         self.paned_window_top  = tk.PanedWindow(self, self.paned_window_main, orient=tk.HORIZONTAL)
 
         TabbedEditorAddin(self, parent=self.paned_window_top, menubar=True)
-        ConsoleAddin(self, parent=self.paned_window_main)
+        ConsoleAddin(self, parent=self.paned_window_main, history_filepath=self.console_history_filepath)
         ConsoleEditorInterface(self, menubar=True)
         ObjectTreeAddin(self, parent=self.paned_window_top, topdict=self.console.locals)
         ConsoleObjectTreeInterface(self)

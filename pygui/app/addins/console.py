@@ -12,8 +12,8 @@ from ._abstract_addin import AbstractAddin
 
 class ConsoleAddin(AbstractAddin):
 
-    def __init__(self, app, menubar=None, parent=None, locals={}):
-        app.console = Console(parent, locals=locals)
+    def __init__(self, app, parent=None, history_filepath=None, locals={}):
+        app.console = Console(parent, history_filepath=history_filepath, locals=locals)
 
         super().__init__(app)
 
