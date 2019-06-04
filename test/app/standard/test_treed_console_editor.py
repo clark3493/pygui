@@ -20,5 +20,5 @@ if os.path.exists(history_filepath):
 root = tk.Tk()
 root.geometry("800x600")
 tce = TreedConsoleEditor(root, history_filepath=history_filepath)
-tce.console.set_history_loglevel(logging.DEBUG)
+#tce.console.set_history_loglevel(logging.INFO)
 root.mainloop()
