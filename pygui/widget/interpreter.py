@@ -452,7 +452,7 @@ class _ConsoleOutput(tk.Text):
 
 class _MessageHandler(object):
 
-    def __init__(self, parent=None, fileno=0, write_hook=None, write_args=[], write_kwargs={}):
+    def __init__(self, parent=None, write_hook=None, write_args=[], write_kwargs={}):
         self.parent = parent
         self.write_hook = write_hook
         self.write_args = write_args
