@@ -23,3 +23,27 @@ def redirect(stdin=sys.stdin,
         sys.stderr      = sys.__stderr__
         sys.displayhook = sys.__displayhook__
         sys.excepthook  = sys.__excepthook__
+
+
+@contextmanager
+def reset_redirect():
+    stdin       = sys.stdin
+    stdout      = sys.stdout
+    stderr      = sys.stderr
+    displayhook = sys.displayhook
+    excepthook  = sys.excepthook
+
+    sys.stdin       = sys.__stdin__
+    sys.stdout      = sys.__stdout__
+    sys.stderr      = sys.__stderr__
+    sys.displayhook = sys.__displayhook__
+    sys.excepthook  = sys.__excepthook__
+
+    try:
+        yield
+    finally:
+        sys.stdin       = stdin
+        sys.stdout      = stdout
+        sys.stderr      = stderr
+        sys.displayhook = displayhook
+        sys.excepthook  = excepthook
