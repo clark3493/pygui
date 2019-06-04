@@ -24,147 +24,197 @@ except AttributeError:
 
 
 logger = logging.getLogger(__name__)
+_ch = logging.StreamHandler()
+_ch.setFormatter(logging.Formatter("%(asctime)s :: %(name)s :: %(levelname)s: %(message)s"))
+logger.addHandler(_ch)
+
+LEVELS = {'STDOUT':    11,
+          'STDERR':    12,
+          'CMD_START': 21,
+          'CMD_CONT':  22}
+
+for suffix, lvl in LEVELS.items():
+    name = "CONSOLE_%s" % suffix
+    logging.addLevelName(lvl, name)
 
 
 class RedirectedInterpreter(InteractiveConsole):
-    
-    def __init__(self, 
+
+    def __init__(self,
                  stdout=sys.stdout,
                  stderr=sys.stderr,
                  excepthook=sys.excepthook,
-                 history_filepath=None,
-                 history_loglevel=logging.INFO,
                  locals=None):
         super().__init__(locals=locals)
-        
-        self.stdout     = stdout
-        self.stderr     = stderr
+
+        self._id = uuid4()
+
+        self.stdout = stdout
+        self.stderr = stderr
         self.excepthook = excepthook
-        
+
         self.locals['__console_stdout__'] = self.stdout
         self.locals['__console_stderr__'] = self.stderr
         self.locals['__console_excepthook__'] = self.excepthook
-        
+
         self._waiting = False
 
-        self.logger = None
-        self._initialize_logger(history_filepath, history_loglevel)
+    @property
+    def id(self):
+        return self._id
 
-    def log(self, msg, level='info'):
-        if self.logger is not None:
-            self._logmethods[level](msg)
-        
     def pushr(self, string):
         with redirect(stdout=self.stdout,
                       stderr=self.stderr,
                       excepthook=self.excepthook):
             self._waiting = self.push(string)
-            self.log(string)
 
-    def set_history_loglevel(self, level):
-        if self.logger is None:
-            raise RuntimeError("No history file logger has been created.")
-        self.logger.setLevel(level)
 
-    def _initialize_logger(self, path, level):
-        if path is None:
-            return
-
-        self.logger = logging.getLogger(str(self.__class__))
-        fh = logging.FileHandler(path)
-        fh.setLevel(logging.DEBUG)
-        self.logger.addHandler(fh)
-        self.logger.setLevel(level)
-
-    @property
-    def _logmethods(self):
-        return None if self.logger is None else {'debug': self.logger.debug,
-                                                 'info': self.logger.info,
-                                                 'warning': self.logger.warning,
-                                                 'error': self.logger.error,
-                                                 'critical': self.logger.critical}
-
-    
 class Console(tk.Frame, RedirectedInterpreter):
-    
-    def __init__(self, parent=None,
-                       locals=None,
-                       auto_view=True,
-                       history_filepath=None,
-                       standalone=False,
-                       command_callback=None):
-        tk.Text.__init__(self, parent)
+
+    def __init__(self,
+                 parent=None,
+                 auto_view=True,
+                 command_callback=None,
+                 history_filepath=None,
+                 locals=None,
+                 standalone=False):
+        tk.Frame.__init__(self, parent)
+
+        stdout_handler = _MessageHandler(self,
+                                         write_hook=self.log,
+                                         write_args=[LEVELS['STDOUT']])
+        stderr_handler = _MessageHandler(self,
+                                         write_hook=self.log,
+                                         write_args=[LEVELS['STDERR']])
         RedirectedInterpreter.__init__(self,
-                                       stdout=_ConsoleStream(self, fileno=1),
-                                       stderr=_ConsoleStream(self, foreground="red", fileno=2),
+                                       stdout=stdout_handler,
+                                       stderr=stderr_handler,
                                        excepthook=print_error,
-                                       history_filepath=history_filepath,
                                        locals=locals)
         self.parent = parent
-        
+
         self._auto_view = auto_view
-        
+
         self.input  = _ConsoleInput(self)
         self.output = _ConsoleOutput(self, auto_view=auto_view)
 
         self.command_callback = command_callback
-        
+
+        self.logger = logging.getLogger(f"CONSOLE_{self.id}")
+        self.logger.setLevel(logging.DEBUG)
+        self._log_handlers = {}
+        self._initialize_logger(filepath=history_filepath)
+
         if standalone:
             self.pack(expand=True, fill=tk.BOTH)
             self.parent.title("PyGUI Console")
-            
+
             self.output.grid(row=0, column=0, columnspan=2,
                              sticky="nsew")
             self.output.configure(bg='gainsboro')
             self.input.grid(row=1, column=1, columnspan=1, sticky="nsew")
-            
+
             label = tk.Label(self, text=">>>")
             label.grid(row=1, column=0, sticky="ne")
-            
+
             self.grid_columnconfigure(0, weight=0)
             self.grid_columnconfigure(1, weight=1)
             self.grid_rowconfigure(1, weight=0)
             self.grid_rowconfigure(0, weight=1)
             self.input.focus_force()
-        
+
     @property
     def auto_view(self):
         return self._auto_view
-        
+
     @auto_view.setter
     def auto_view(self, value):
         self.output.auto_view = value
         self._auto_view = value
-        
+
+    def log(self, msg, level, *args, **kwargs):
+        self.logger.log(level, msg, *args, **kwargs)
+
     def pushr(self, string, print_input=True):
-        with redirect(stdout=self.stdout,
-                      stderr=self.stderr,
-                      excepthook=self.excepthook):
-            if not self._waiting and print_input:
-                sys.stdout.write(f"{sys.ps1}{string}\n")
-                self.log(string, level='info')
-            elif print_input:
-                sys.stdout.write(f"{string}\n")
-                self.log(string, level='info')
-            self._waiting = self.push(string)
-            if self._waiting and print_input:
-                sys.stdout.write(f"{sys.ps2}")
+        if not self._waiting and print_input:
+            self.log(string, level=LEVELS['CMD_START'])
+        elif print_input:
+            self.log(string, level=LEVELS['CMD_CONT'])
+        super().pushr(string)
+        if self._waiting:
+            # TODO: FIX LABEL TEXT
+            pass
 
-        if self.command_callback is not None:
-            self.command_callback()
-    
-    def write(self, string, foreground="black"):
-        self.output.write(string, foreground=foreground)
+    def set_history_file(self, filepath, loglevel=logging.INFO):
+        log = self.logger
 
-    def _initialize_logger(self, path, level):
-        super()._initialize_logger(path, level)
-        if self.logger is not None:
-            #self.stdout.add_secondary_output(self.logger.debug)
-            self.stderr.add_secondary_output(self.logger.debug)
-        
-        
+        history_handler = logging.FileHandler(filepath, delay=True)
+        history_handler.setLevel(loglevel)  # default setting is only to display input, not stdout or stderr
+        history_handler.setFormatter(logging.Formatter("%(message)s\n"))
+        history_handler.addFilter(_FilterBlank())
+        history_handler.terminator = ""
+
+        # remove the old handler
+        if 'history' in self._log_handlers:
+            log.handlers = [h for h in log.handlers if h is not self._log_handlers['history']]
+
+        self._log_handlers['history'] = history_handler
+        log.addHandler(history_handler)
+
+    def set_history_loglevel(self, level):
+        if 'history' in self._log_handlers:
+            self._log_handlers['history'].setLevel(level)
+        else:
+            msg = "Tried setting the history log level for Console %s to %s, but no history file handler was found."
+            msg = msg % (self.id, str(level))
+            logger.warning(msg)
+
+    def _initialize_logger(self, filepath=None):
+        log = self.logger
+
+        console_black_text_output = _MessageHandler(self,
+                                                    write_hook=self.output.write)
+        console_red_text_output   = _MessageHandler(self,
+                                                    write_hook=self.output.write,
+                                                    write_kwargs={'foreground': 'red'})
+
+        raw_formatter = logging.Formatter("%(message)s")
+
+        stdout_console_handler = logging.StreamHandler(stream=console_black_text_output)
+        stdout_console_handler.setLevel(LEVELS['STDOUT'])
+        stdout_console_handler.addFilter(_FilterStdout())
+        stdout_console_handler.setFormatter(raw_formatter)
+        stdout_console_handler.terminator = ""
+        log.addHandler(stdout_console_handler)
+
+        stderr_console_handler = logging.StreamHandler(stream=console_red_text_output)
+        stderr_console_handler.setLevel(LEVELS['STDERR'])
+        stderr_console_handler.addFilter(_FilterStderr())
+        stderr_console_handler.setFormatter(raw_formatter)
+        stderr_console_handler.terminator = ""
+        log.addHandler(stderr_console_handler)
+
+        cmd_start_console_handler = logging.StreamHandler(stream=console_black_text_output)
+        cmd_start_console_handler.setLevel(LEVELS['CMD_START'])
+        cmd_start_console_handler.addFilter(_FilterCmdStart())
+        cmd_start_console_formatter = logging.Formatter(f"{sys.ps1}%(message)s")
+        cmd_start_console_handler.setFormatter(cmd_start_console_formatter)
+        log.addHandler(cmd_start_console_handler)
+
+        cmd_cont_console_handler = logging.StreamHandler(stream=console_black_text_output)
+        cmd_cont_console_handler.setLevel(LEVELS['CMD_CONT'])
+        cmd_cont_console_handler.addFilter(_FilterCmdCont())
+        cmd_cont_console_formatter = logging.Formatter(f"{sys.ps2}%(message)s")
+        cmd_cont_console_handler.setFormatter(cmd_cont_console_formatter)
+        log.addHandler(cmd_cont_console_handler)
+
+        if filepath is not None:
+            self.set_history_file(filepath)
+
+
 class _ConsoleInput(tk.Entry):
-    
+
     def __init__(self, parent=None, tab_spacing=4, max_cache=128):
         super().__init__(parent)
         self.parent = parent
@@ -203,7 +253,7 @@ class _ConsoleInput(tk.Entry):
         if self._current_command_index < len(self._commands):
             self._current_command_index += 1
         return self._commands[-self._current_command_index]
-        
+
     def push(self, string):
         self.parent.pushr(string)
         self.store_command(string)
@@ -217,26 +267,26 @@ class _ConsoleInput(tk.Entry):
         if len(self._commands) > self.max_cache:
             self._commands = self._commands[1:]
         self._commands.insert(-1, cmd)
-        
+
     def tab(self, event=None):
         self.insert(tk.INSERT, ' ' * self.tab_spacing)
         self.select_clear()
-        return "break"  # prevent class default tab behavior from occurring
-                 
-                 
+        return "break" # prevent class default tab behavior from occurring
+
+
 class _ConsoleOutput(tk.Text):
-    
+
     def __init__(self, parent=None, auto_view=True):
         super().__init__(parent)
         self.parent = parent
         self.auto_view = auto_view
-        
+
     def disable(self):
         self.configure(state="disabled")
-        
+
     def enable(self):
         self.configure(state="normal")
-        
+
     def write(self, string, foreground="black"):
         self.enable()
         uid = uuid4()
@@ -245,35 +295,49 @@ class _ConsoleOutput(tk.Text):
         self.disable()
         if self.auto_view:
             self.see(tk.END)
-                 
-                 
-class _ConsoleStream(object):
-    
-    def __init__(self, parent=None, foreground="black", fileno=0):
+
+
+class _MessageHandler(object):
+
+    def __init__(self, parent=None, fileno=0, write_hook=None, write_args=[], write_kwargs={}):
         self.parent = parent
-        self.foreground = foreground
-        self._fileno = fileno
+        self.write_hook = write_hook
+        self.write_args = write_args
+        self.write_kwargs = write_kwargs
 
-        self.hooks = []
-        self.hook_args = []
-        self.hook_kwargs = []
-
-    def add_secondary_output(self, hook, *args, **kwargs):
-        self.hooks.append(hook)
-        self.hook_args.append(args)
-        self.hook_kwargs.append(kwargs)
-        
-    def fileno(self):
-        return self._fileno
-    
     def write(self, string):
-        self.parent.write(string, foreground=self.foreground)
-        for hook, args, kwargs in zip(self.hooks, self.hook_args, self.hook_kwargs):
-            hook(string, *args, **kwargs)
-        
-        
+        self.write_hook(string, *self.write_args, **self.write_kwargs)
+
+
+class _FilterCmdStart(logging.Filter):
+    def filter(self, record):
+        return record.levelno == LEVELS['CMD_START']
+
+
+class _FilterCmdCont(logging.Filter):
+    def filter(self, record):
+        return record.levelno == LEVELS['CMD_CONT']
+
+
+class _FilterStderr(logging.Filter):
+    def filter(self, record):
+        return record.levelno == LEVELS['STDERR']
+
+
+class _FilterStdout(logging.Filter):
+    def filter(self, record):
+        return record.levelno == LEVELS['STDOUT']
+
+
+class _FilterBlank(logging.Filter):
+    # For some reason, stdout sometimes seems to return 2 blank lines as a separate
+    # output following the actual output. These lines then screw up the log file. This
+    # filter can be used to only display non-white messages.
+    def filter(self, record):
+        return record.msg.strip() != ""
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     console = Console(root, standalone=True)
     root.mainloop()
-    
