@@ -10,7 +10,8 @@ from uuid import uuid4
 SRCDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if SRCDIR not in sys.path:
     sys.path.insert(0, SRCDIR)
-    
+
+from util import DEFAULT_LOGGING_FORMATTER
 from util.context import redirect
 from util.handler import print_error
 
@@ -25,7 +26,7 @@ except AttributeError:
 
 logger = logging.getLogger(__name__)
 _ch = logging.StreamHandler()
-_ch.setFormatter(logging.Formatter("%(asctime)s :: %(name)s :: %(levelname)s: %(message)s"))
+_ch.setFormatter(DEFAULT_LOGGING_FORMATTER)
 logger.addHandler(_ch)
 
 LEVELS = {'STDOUT':    11,
