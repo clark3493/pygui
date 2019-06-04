@@ -51,9 +51,7 @@ class SimpleConsoleEditor(AbstractApplication):
         self.console.output.grid(row=0, column=0, columnspan=2, sticky="nsew")
         self.console.output.configure(bg='gainsboro')
         self.console.input.grid(row=1, column=1, columnspan=1, sticky="nsew")
-
-        label = tk.Label(self.console, text=">>>")
-        label.grid(row=1, column=0, sticky="ne")
+        self.console.status_label.grid(row=1, column=0, sticky="ne")
 
         self.console.grid_columnconfigure(0, weight=0)
         self.console.grid_columnconfigure(1, weight=1)
