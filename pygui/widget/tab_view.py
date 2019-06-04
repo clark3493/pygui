@@ -1,6 +1,23 @@
+import os
+import sys
+
+import logging
 import tkinter as tk
 
 from tkinter import ttk
+
+LOCAL_DIR = os.path.abspath(os.path.dirname(__file__))
+SRC_DIR = os.path.dirname(os.path.dirname(LOCAL_DIR))
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+
+from util import DEFAULT_LOGGING_FORMATTER
+
+
+logger = logging.getLogger(__name__)
+_ch = logging.StreamHandler()
+_ch.setFormatter(DEFAULT_LOGGING_FORMATTER)
+logger.addHandler(_ch)
 
 
 class AbstractTabView(ttk.Notebook):
@@ -43,6 +60,9 @@ class AbstractTabView(ttk.Notebook):
         new_tab = [tab for tab in self.tabs() if tab not in old_tabs][0]
         self.tab_widgets[new_tab] = widget
         self.select(new_tab)
+
+        logger.info(f"Added '{str(widget)}'' widget under tab name {new_tab}")
+
         return new_tab
 
     def bind_keys(self):
