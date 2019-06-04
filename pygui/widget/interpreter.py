@@ -33,14 +33,40 @@ LEVELS = {'STDOUT':    11,
           'STDERR':    12,
           'CMD_START': 21,
           'CMD_CONT':  22}
+"""dict of str->int: Custom logging levels for this module.
 
+The STDOUT and STDERR levels are defined such that they will be output under log level DEBUG (10)
+or lower. The CMD_START and CMD_CONT levels are defined such that they will be output under log
+level INFO (20) or lower.
+
+The CMD_START level is intended to be reserved for user input when the interpreter is not
+expecting input continuations. The CMD_CONT, on the other hand, is intended to be reserved for
+user input when the interpreter is expecting input continuation (e.g. for a previous command
+which did not close out all parentheses.
+"""
+
+# add the custom names to the logging name list for use in log message formatting
 for suffix, lvl in LEVELS.items():
     name = "CONSOLE_%s" % suffix
     logging.addLevelName(lvl, name)
 
 
 class RedirectedInterpreter(InteractiveConsole):
+    """A subclass of InteractiveConsole which redirects stdout and stderr to user defined streams.
 
+    The stream objects should have a 'write' method whose first argument is the string to be written.
+
+    Parameters
+    ----------
+    stdout: _io.TextIOWrapper or similar, optional
+        The stream to output stdout. Default=sys.stdout.
+    stderr: _io.TextIOWrapper or similar, optional
+        The stream to output stderr. Default=sys.stderr.
+    excepthook: function, optional
+        The exception handling hook for the interpreter to use. Default=sys.excepthook.
+    locals: dict of str->object or None
+        The variables to initialize the interpreters locals().
+    """
     def __init__(self,
                  stdout=sys.stdout,
                  stderr=sys.stderr,
@@ -54,17 +80,26 @@ class RedirectedInterpreter(InteractiveConsole):
         self.stderr = stderr
         self.excepthook = excepthook
 
+        # store redirected stdout, stderr and except hook for access from locals()
         self.locals['__console_stdout__'] = self.stdout
         self.locals['__console_stderr__'] = self.stderr
         self.locals['__console_excepthook__'] = self.excepthook
 
-        self._waiting = False
+        self._waiting = False   # track whether or not the interpreter is expecting additional input
 
     @property
     def id(self):
+        """str: the interpreter's unique ID"""
         return self._id
 
     def pushr(self, string):
+        """Pass a command to the interpreter with redirected stdout and stderr output.
+
+        Parameters
+        ----------
+        string: str
+            The command to pass to the interpreter.
+        """
         with redirect(stdout=self.stdout,
                       stderr=self.stderr,
                       excepthook=self.excepthook):
@@ -72,7 +107,47 @@ class RedirectedInterpreter(InteractiveConsole):
 
 
 class Console(tk.Frame, RedirectedInterpreter):
+    """A tkinter based subclass of RedirectedInterpreter with designated user input and output widgets.
 
+    Parameters
+    ----------
+    parent: tkinter.Widget
+        The Console's parent widget.
+    auto_view: bool, optional
+        Automatically refocus the output text to the last output. Default=True.
+    command_callback: function or None, optional
+        Callback function to be called on each user input command. Default=None.
+    history_filepath: str or None, optional
+        The filepath to the history file which logs input and/or output. Default=None.
+    locals: dict of str->object or None, optional
+        The variables to initialize the interpreter locals()
+    standalone: bool, optional
+        Automatically configure the Console as a standalone application. Default=False.
+
+    Attributes
+    ----------
+    auto_view: bool
+        Automatically refocus the output text to the last output upon user command input.
+    command_callback: function or None
+        Callback command to be called on each user input command.
+
+        Should have a single argument 'event'.
+    input: _ConsoleInput
+        A tkinter.Entry based widget to collect user input and pass it to the interpreter
+    logger: logging.Logger
+        Logger which facilitates printing to the output display as well as any history files.
+    output: _ConsoleOutput
+        A tkinter.Text based widget for displaying output from the interpreter.
+
+        User commands are also echo'd on the output display.
+    parent: tkinter.Widget
+        The parent widget.
+
+    Notes
+    -----
+    .. [1] If the 'standalone' parameter is False, the user will be responsible for organizing
+           the console input and output (e.g. calling pack(), grid, etc.)
+    """
     def __init__(self,
                  parent=None,
                  auto_view=True,
@@ -107,6 +182,9 @@ class Console(tk.Frame, RedirectedInterpreter):
         self._log_handlers = {}
         self._initialize_logger(filepath=history_filepath)
 
+        self._status_label_text_ = ">>>"
+        self.status_label = tk.Label(self, text=self._status_label_text)
+
         if standalone:
             self.pack(expand=True, fill=tk.BOTH)
             self.parent.title("PyGUI Console")
@@ -116,8 +194,7 @@ class Console(tk.Frame, RedirectedInterpreter):
             self.output.configure(bg='gainsboro')
             self.input.grid(row=1, column=1, columnspan=1, sticky="nsew")
 
-            label = tk.Label(self, text=">>>")
-            label.grid(row=1, column=0, sticky="ne")
+            self.status_label.grid(row=1, column=0, sticky="ne")
 
             self.grid_columnconfigure(0, weight=0)
             self.grid_columnconfigure(1, weight=1)
@@ -135,19 +212,58 @@ class Console(tk.Frame, RedirectedInterpreter):
         self._auto_view = value
 
     def log(self, msg, level, *args, **kwargs):
+        """Pass a message to the Console logger to be distributed to the output display, history files, etc.
+
+        Parameters
+        ----------
+        msg: str
+            The message to be displayed/logged.
+        level: int
+            The log level of the message.
+        *args:
+            Arbitrary positional arguments passed to the logger.log method.
+        **kwargs:
+            Arbitrary keyword arguments passed to the logger.log method.
+        """
         self.logger.log(level, msg, *args, **kwargs)
 
     def pushr(self, string, print_input=True):
+        """Pass a command to the interpreter with redirected stdout/stderr output.
+
+        Parameters
+        ----------
+        string: str
+            The command to pass to the interpreter.
+        print_input: bool, optional
+            Output command, stdout, etc to output display and/or other log streams. Default=True.
+        """
         if not self._waiting and print_input:
             self.log(string, level=LEVELS['CMD_START'])
         elif print_input:
             self.log(string, level=LEVELS['CMD_CONT'])
         super().pushr(string)
-        if self._waiting:
-            # TODO: FIX LABEL TEXT
-            pass
+
+        # change the text on the command entry label to notify user if additional input is expected
+        self._status_label_text = " . . . " if self._waiting else ">>>"
 
     def set_history_file(self, filepath, loglevel=logging.INFO):
+        """Add a handler to the Console logger to log commands and optionally stdout/stderr output.
+
+        Parameters
+        ----------
+        filepath: str
+            The filepath to the history file.
+        loglevel: int, optional
+            The log level of the history file logger. Default=logging.INFO (20).
+
+        Notes
+        -----
+        .. [1] The handler is stored in the Console's '_log_handlers' dictionary
+               attribute history the 'history' key.
+        .. [2] The default setting for the handler outputs user commands to the
+               history file. To also output stdout/stderr output, set the loglevel
+               to logging.DEBUG (10).
+        """
         log = self.logger
 
         history_handler = logging.FileHandler(filepath, delay=True)
@@ -164,6 +280,13 @@ class Console(tk.Frame, RedirectedInterpreter):
         log.addHandler(history_handler)
 
     def set_history_loglevel(self, level):
+        """Adjust the logging level that gets output to the history fiile.
+
+        Parameters
+        ----------
+        level: int
+            The minimum logging level to output.
+        """
         if 'history' in self._log_handlers:
             self._log_handlers['history'].setLevel(level)
         else:
@@ -172,6 +295,26 @@ class Console(tk.Frame, RedirectedInterpreter):
             logger.warning(msg)
 
     def _initialize_logger(self, filepath=None):
+        """
+        Initialize the Console's logger, which controls all output to the output display and history files.
+
+        Four handlers are initially added to the logger, 1 each for:
+            stdout
+            stderr
+            command start input (i.e. interpreter is not expecting input)
+            command continuation input
+
+        Each of these handlers has its own filter which ensures that only log records of the correct
+        type are emitted and formatted appropriately.
+
+        Optionally, if a history file is specified, the history file is created or appended to, also
+        with its own handler.
+
+        Parameters
+        ----------
+        filepath: str or None, optional.
+            The filepath to the history file, if any. Default=None.
+        """
         log = self.logger
 
         console_black_text_output = _MessageHandler(self,
@@ -212,6 +355,15 @@ class Console(tk.Frame, RedirectedInterpreter):
 
         if filepath is not None:
             self.set_history_file(filepath)
+
+    @property
+    def _status_label_text(self):
+        return self._status_label_text_
+
+    @_status_label_text.setter
+    def _status_label_text(self, value):
+        self._status_label_text_ = value
+        self.status_label["text"] = value
 
 
 class _ConsoleInput(tk.Entry):
