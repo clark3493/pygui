@@ -253,21 +253,21 @@ class _NodePopupMenu(tk.Menu):
 
     def __init__(self, parent, *args, tearoff=0, commands={}, **kwargs):
         super().__init__(parent, *args, tearoff=tearoff, **kwargs)
-
         self.parent = parent
 
-        self.labels = list(commands.keys())
-        self.commands = list(commands.values())
+        self.commands = commands
 
-        for label, command in commands.items():
-            self.add_command(label=label, command=command)
+        for label in self.commands.keys():
+            self.add_command(label=label, command=self.commands[label])
 
     def show_popup(self, event):
         try:
-            for label, command in zip(self.labels, self.commands):
-                def f(*args):
-                    return command(event=event)
-                self.entryconfig(label, command=f)
+            for label, command in self.commands.items():
+                def make_f(cmd, ev):
+                    def f(*args):
+                        return cmd(event=ev)
+                    return f
+                self.entryconfig(label, command=make_f(command, event))
             self.tk_popup(event.x_root, event.y_root)
         finally:
             self.grab_release()
