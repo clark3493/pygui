@@ -246,6 +246,9 @@ class Console(tk.Frame, RedirectedInterpreter):
         # change the text on the command entry label to notify user if additional input is expected
         self._status_label_text = " . . . " if self._waiting else ">>>"
 
+        if self.command_callback is not None:
+            self.command_callback()
+
     def set_history_file(self, filepath, loglevel=logging.INFO):
         """Add a handler to the Console logger to log commands and optionally stdout/stderr output.
 
