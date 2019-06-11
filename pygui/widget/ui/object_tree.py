@@ -192,7 +192,8 @@ class TreeNode(object):
         commands = {}
         for cmd in command_initiators:
             if cmd.filter(self, event):
-                commands[cmd.label] = cmd.callback(self)
+                for label, callback in cmd.callbacks().items():
+                    commands[label] = callback(self)
 
         if commands:
             popup = _NodePopupMenu(self.parent, commands=commands)
@@ -274,10 +275,12 @@ class _NodePopupMenu(tk.Menu):
 
 class _DeleteTopdictItemInitiator(object):
 
-    label = "Delete"
+    @classmethod
+    def callbacks(cls):
+        return {"Delete": cls.delete}
 
     @staticmethod
-    def callback(node):
+    def delete(node):
         return node.parent._delete_selected_topdict_item
 
     @staticmethod

@@ -37,10 +37,12 @@ class DataFrameAddin(AbstractAddin):
 
 class CreateDataFrameViewInitiator(object):
 
-    label = "View"
+    @classmethod
+    def callbacks(cls):
+        return {"View": cls.view}
 
     @staticmethod
-    def callback(node):
+    def view(node):
         def _add_dataframe_view(event=None):
             widget = event.widget
             tree = find_widget_parent_instance(widget, ObjectTree)
